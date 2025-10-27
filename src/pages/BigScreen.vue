@@ -246,6 +246,22 @@ const closeDetailPanel = () => {
   detailPanelVisible.value = false
 }
 
+// 重置相机到初始位置
+const resetCamera = () => {
+  if (viewer) {
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(104.195397, 35.86166, 11100000),
+      orientation: {
+        heading: Cesium.Math.toRadians(0),
+        pitch: Cesium.Math.toRadians(-90),
+        roll: 0
+      },
+      duration: 2
+    })
+    console.log('相机已重置到初始位置')
+  }
+}
+
 onMounted(() => {
   // 获取 Cesium Ion 默认的底图列表
   const imageryViewModels = Cesium.createDefaultImageryProviderViewModels()
@@ -377,6 +393,16 @@ onMounted(() => {
   <div class="big-screen-wrapper">
     <div ref="cesiumContainer" class="cesium-container"></div>
     
+    <!-- 重置视角按钮 -->
+    <button class="cesium-reset-button cesium-button cesium-toolbar-button" @click="resetCamera" title="重置视角">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+        <path d="M21 3v5h-5"/>
+        <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+        <path d="M3 21v-5h5"/>
+      </svg>
+    </button>
+    
     <!-- 左侧筛选和电站列表 -->
     <div class="station-panel">
       <!-- 筛选区域 -->
@@ -499,6 +525,41 @@ onMounted(() => {
 .cesium-container {
   width: 100%;
   height: 100%;
+}
+
+/* 重置视角按钮 - 模仿 Cesium 工具栏按钮样式 */
+.cesium-reset-button {
+  position: absolute;
+  top: 5px;
+  right: 350px;  /* 放在全屏按钮左侧 */
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  background-color: rgba(48, 51, 54, 0.8);
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  z-index: 1000;
+}
+
+.cesium-reset-button svg {
+  color: #edffff;
+  width: 16px;
+  height: 16px;
+}
+
+.cesium-reset-button:hover {
+  background-color: rgba(72, 94, 138, 0.9);
+  transform: scale(1.05);
+}
+
+.cesium-reset-button:active {
+  background-color: rgba(72, 94, 138, 1);
+  transform: scale(0.98);
 }
 
 /* 右侧详情面板 */

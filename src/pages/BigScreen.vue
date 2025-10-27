@@ -13,51 +13,138 @@ const selectedLocation = ref(null)
 // 悬浮提示标签
 let hoverLabel = null
 
-// 数据列表：地名、经纬度、相机高度
-const locationData = ref([
+// 筛选条件
+const selectedRobotType = ref('全部')
+const selectedCountry = ref('全部')
+
+// 机器人类型列表
+const robotTypes = ['全部', '干挂式', '分布式', 'AGV']
+
+// 国家列表
+const countries = ['全部', '中国', '日本', '美国']
+
+// 电站数据列表
+const stationData = ref([
   {
     id: 1,
-    name: '安徽合肥',
+    name: '安徽合肥光伏电站',
     longitude: 117.137899,
     latitude: 31.830709,
-    cameraHeight: 1000  // 相机高度（米）
+    cameraHeight: 1000,
+    robotCount: 15,
+    robotTypes: ['干挂式', '分布式'],
+    description: '大型地面光伏电站，采用先进的清洁机器人系统',
+    capacity: '100MW',
+    country: '中国',
+    province: '安徽省',
+    owner: '国家电投',
+    epc: '中国电建',
+    operation: '阳光电源',
+    image: 'https://via.placeholder.com/400x200?text=Hefei+Station'
   },
   {
     id: 2,
-    name: '北京',
+    name: '北京分布式电站',
     longitude: 116.4074,
     latitude: 39.9042,
-    cameraHeight: 1000
+    cameraHeight: 1000,
+    robotCount: 8,
+    robotTypes: ['分布式', 'AGV'],
+    description: '城市分布式光伏项目，智能运维管理',
+    capacity: '50MW',
+    country: '中国',
+    province: '北京市',
+    owner: '华能集团',
+    epc: '中国能建',
+    operation: '远景能源',
+    image: 'https://via.placeholder.com/400x200?text=Beijing+Station'
   },
   {
     id: 3,
-    name: '上海',
+    name: '上海智能光伏园区',
     longitude: 121.4737,
     latitude: 31.2304,
-    cameraHeight: 1000
+    cameraHeight: 1000,
+    robotCount: 20,
+    robotTypes: ['干挂式', 'AGV'],
+    description: '工业园区屋顶光伏，全自动清洁系统',
+    capacity: '80MW',
+    country: '中国',
+    province: '上海市',
+    owner: '上海电力',
+    epc: '上海电气',
+    operation: '晶科能源',
+    image: 'https://via.placeholder.com/400x200?text=Shanghai+Station'
   },
   {
     id: 4,
-    name: '广州',
+    name: '广州新能源基地',
     longitude: 113.2644,
     latitude: 23.1291,
-    cameraHeight: 1000
+    cameraHeight: 1000,
+    robotCount: 12,
+    robotTypes: ['干挂式', '分布式'],
+    description: '综合能源示范项目，多种机器人协同作业',
+    capacity: '120MW',
+    country: '中国',
+    province: '广东省',
+    owner: '南方电网',
+    epc: '中国电建',
+    operation: '隆基绿能',
+    image: 'https://via.placeholder.com/400x200?text=Guangzhou+Station'
   },
   {
     id: 5,
-    name: '深圳',
+    name: '深圳科技园光伏站',
     longitude: 114.0579,
     latitude: 22.5431,
-    cameraHeight: 1000
+    cameraHeight: 1000,
+    robotCount: 10,
+    robotTypes: ['AGV'],
+    description: '高新技术园区配套光伏电站',
+    capacity: '60MW',
+    country: '中国',
+    province: '广东省',
+    owner: '华为数字能源',
+    epc: '比亚迪',
+    operation: '特变电工',
+    image: 'https://via.placeholder.com/400x200?text=Shenzhen+Station'
   },
   {
     id: 6,
-    name: '成都',
+    name: '成都西部电站',
     longitude: 104.0668,
     latitude: 30.5728,
-    cameraHeight: 1000
+    cameraHeight: 1000,
+    robotCount: 18,
+    robotTypes: ['干挂式', '分布式', 'AGV'],
+    description: '西部大型光伏基地，全套智能运维',
+    capacity: '150MW',
+    country: '中国',
+    province: '四川省',
+    owner: '国家能源集团',
+    epc: '中国电建',
+    operation: '协鑫集团',
+    image: 'https://via.placeholder.com/400x200?text=Chengdu+Station'
   }
 ])
+
+// 筛选后的电站列表
+const filteredStations = ref([])
+
+// 筛选函数
+const filterStations = () => {
+  filteredStations.value = stationData.value.filter(station => {
+    const robotTypeMatch = selectedRobotType.value === '全部' || 
+                          station.robotTypes.includes(selectedRobotType.value)
+    const countryMatch = selectedCountry.value === '全部' || 
+                        station.country === selectedCountry.value
+    return robotTypeMatch && countryMatch
+  })
+}
+
+// 初始化筛选列表
+filterStations()
 
 // 创建 SVG 图标（Data URI 格式）
 const createSVGIcon = (color = '#FF4444') => {
@@ -196,12 +283,12 @@ onMounted(() => {
     }
   })
   
-  // 读取数据列表，绘制所有标记点
-  locationData.value.forEach(location => {
-    addLocationMarker(location)
+  // 读取电站数据列表，绘制所有标记点
+  stationData.value.forEach(station => {
+    addLocationMarker(station)
   })
   
-  console.log(`已添加 ${locationData.value.length} 个标记点`)
+  console.log(`已添加 ${stationData.value.length} 个电站标记点`)
   
   // 创建悬浮提示标签
   hoverLabel = viewer.entities.add({
@@ -231,11 +318,11 @@ onMounted(() => {
     if (Cesium.defined(pickedObject) && Cesium.defined(pickedObject.id)) {
       const entity = pickedObject.id
       if (entity !== hoverLabel && entity.position) {
-        const locationInfo = locationData.value.find(loc => loc.name === entity.name)
-        if (locationInfo) {
+        const stationInfo = stationData.value.find(s => s.name === entity.name)
+        if (stationInfo) {
           // 显示悬浮标签
           hoverLabel.position = entity.position.getValue(Cesium.JulianDate.now())
-          hoverLabel.label.text = locationInfo.name
+          hoverLabel.label.text = stationInfo.name
           hoverLabel.label.show = true
           viewer.scene.canvas.style.cursor = 'pointer'
         }
@@ -253,11 +340,11 @@ onMounted(() => {
     if (Cesium.defined(pickedObject) && Cesium.defined(pickedObject.id)) {
       const entity = pickedObject.id
       if (entity !== hoverLabel && entity.position) {
-        // 获取实体对应的位置数据
-        const locationInfo = locationData.value.find(loc => loc.name === entity.name)
-        if (locationInfo) {
+        // 获取实体对应的电站数据
+        const stationInfo = stationData.value.find(s => s.name === entity.name)
+        if (stationInfo) {
           // 飞到该位置（会自动显示详情面板）
-          flyToLocation(locationInfo)
+          flyToLocation(stationInfo)
         } else {
           // 如果找不到对应数据，使用默认高度
           const position = entity.position.getValue(Cesium.JulianDate.now())
@@ -290,26 +377,43 @@ onMounted(() => {
   <div class="big-screen-wrapper">
     <div ref="cesiumContainer" class="cesium-container"></div>
     
-    <!-- 左侧地名列表 -->
-    <div class="location-list">
-      <div class="list-header">地点导航</div>
-      <div class="list-content">
+    <!-- 左侧筛选和电站列表 -->
+    <div class="station-panel">
+      <!-- 筛选区域 -->
+      <div class="filter-section">
+        <div class="filter-group">
+          <label class="filter-label">机器人类型</label>
+          <select v-model="selectedRobotType" @change="filterStations" class="filter-select">
+            <option v-for="type in robotTypes" :key="type" :value="type">{{ type }}</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label">国家</label>
+          <select v-model="selectedCountry" @change="filterStations" class="filter-select">
+            <option v-for="country in countries" :key="country" :value="country">{{ country }}</option>
+          </select>
+        </div>
+      </div>
+      
+      <!-- 电站列表 -->
+      <div class="list-header">电站列表 ({{ filteredStations.length }})</div>
+      <div class="station-list">
         <div 
-          v-for="location in locationData" 
-          :key="location.id"
-          class="location-item"
-          @click="flyToLocation(location)"
+          v-for="station in filteredStations" 
+          :key="station.id"
+          class="station-item"
+          @click="flyToLocation(station)"
         >
-          <div class="location-name">{{ location.name }}</div>
-          <div class="location-coords">
-            <span>经度: {{ location.longitude }}°</span>
-            <span>纬度: {{ location.latitude }}°</span>
+          <div class="station-name">{{ station.name }}</div>
+          <div class="station-info">
+            <span class="info-tag">🤖 {{ station.robotCount }}台</span>
+            <span class="info-tag">⚡ {{ station.capacity }}</span>
           </div>
         </div>
       </div>
     </div>
     
-    <!-- 右侧详情面板 -->
+    <!-- 右侧电站详情面板 -->
     <transition name="slide-fade">
       <div v-if="detailPanelVisible && selectedLocation" class="detail-panel">
         <div class="detail-header">
@@ -317,25 +421,57 @@ onMounted(() => {
           <button class="close-btn" @click="closeDetailPanel">✕</button>
         </div>
         <div class="detail-content">
-          <div class="detail-item">
-            <div class="detail-label">地点名称</div>
-            <div class="detail-value">{{ selectedLocation.name }}</div>
+          <!-- 电站图片 -->
+          <div class="station-image">
+            <img :src="selectedLocation.image" :alt="selectedLocation.name">
           </div>
-          <div class="detail-item">
-            <div class="detail-label">经度</div>
-            <div class="detail-value">{{ selectedLocation.longitude }}°</div>
-          </div>
-          <div class="detail-item">
-            <div class="detail-label">纬度</div>
-            <div class="detail-value">{{ selectedLocation.latitude }}°</div>
-          </div>
-          <div class="detail-item">
-            <div class="detail-label">视角高度</div>
-            <div class="detail-value">{{ selectedLocation.cameraHeight }} 米</div>
-          </div>
-          <div class="detail-item">
-            <div class="detail-label">地点编号</div>
-            <div class="detail-value">#{{ selectedLocation.id }}</div>
+          
+          <!-- 基本信息 -->
+          <div class="info-section">
+            <div class="detail-item">
+              <div class="detail-label">电站名称</div>
+              <div class="detail-value">{{ selectedLocation.name }}</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">经纬度</div>
+              <div class="detail-value">{{ selectedLocation.longitude }}°, {{ selectedLocation.latitude }}°</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">机器人数量</div>
+              <div class="detail-value">{{ selectedLocation.robotCount }} 台</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">机器人类型</div>
+              <div class="detail-value">
+                <span v-for="(type, index) in selectedLocation.robotTypes" :key="index" class="robot-type-tag">
+                  {{ type }}
+                </span>
+              </div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">电站容量</div>
+              <div class="detail-value">{{ selectedLocation.capacity }}</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">国家/省份</div>
+              <div class="detail-value">{{ selectedLocation.country }} / {{ selectedLocation.province }}</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">业主</div>
+              <div class="detail-value">{{ selectedLocation.owner }}</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">EPC</div>
+              <div class="detail-value">{{ selectedLocation.epc }}</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">运维</div>
+              <div class="detail-value">{{ selectedLocation.operation }}</div>
+            </div>
+            <div class="detail-item full-width">
+              <div class="detail-label">电站描述</div>
+              <div class="detail-value">{{ selectedLocation.description }}</div>
+            </div>
           </div>
         </div>
         <div class="detail-footer">
@@ -370,7 +506,7 @@ onMounted(() => {
   position: absolute;
   top: 20px;
   right: 20px;
-  width: 280px;
+  width: 380px;
   max-height: calc(100vh - 40px);
   background: rgba(0, 0, 0, 0.75);
   border-radius: 8px;
@@ -378,6 +514,47 @@ onMounted(() => {
   backdrop-filter: blur(10px);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
   z-index: 1000;
+}
+
+/* 电站图片 */
+.station-image {
+  width: 100%;
+  height: 180px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.station-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* 信息区域 */
+.info-section {
+  padding: 0;
+}
+
+/* 机器人类型标签 */
+.robot-type-tag {
+  display: inline-block;
+  padding: 4px 10px;
+  margin-right: 6px;
+  margin-top: 4px;
+  background: rgba(255, 107, 53, 0.3);
+  border: 1px solid rgba(255, 107, 53, 0.5);
+  border-radius: 4px;
+  color: #fff;
+  font-size: 12px;
+}
+
+/* 全宽项目（如描述） */
+.detail-item.full-width {
+  grid-column: 1 / -1;
+}
+
+.detail-item.full-width .detail-value {
+  line-height: 1.6;
 }
 
 .detail-header {
@@ -512,12 +689,12 @@ onMounted(() => {
   opacity: 0;
 }
 
-/* 左侧地名列表 */
-.location-list {
+/* 左侧电站面板 */
+.station-panel {
   position: absolute;
   top: 20px;
   left: 20px;
-  width: 280px;
+  width: 320px;
   max-height: calc(100vh - 40px);
   background: rgba(0, 0, 0, 0.75);
   border-radius: 8px;
@@ -525,44 +702,91 @@ onMounted(() => {
   backdrop-filter: blur(10px);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
   z-index: 999;
+  display: flex;
+  flex-direction: column;
 }
 
+/* 筛选区域 */
+.filter-section {
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.filter-group {
+  margin-bottom: 12px;
+}
+
+.filter-group:last-child {
+  margin-bottom: 0;
+}
+
+.filter-label {
+  display: block;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.filter-select {
+  width: 100%;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.filter-select:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.filter-select option {
+  background: #1a1a1a;
+  color: #fff;
+}
+
+/* 列表标题 */
 .list-header {
-  padding: 16px 20px;
+  padding: 12px 16px;
   background: rgba(255, 255, 255, 0.1);
   color: #fff;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: bold;
   border-bottom: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-.list-content {
-  max-height: calc(100vh - 100px);
+/* 电站列表 */
+.station-list {
+  flex: 1;
   overflow-y: auto;
   padding: 10px;
 }
 
-/* 滚动条样式 */
-.list-content::-webkit-scrollbar {
+.station-list::-webkit-scrollbar {
   width: 6px;
 }
 
-.list-content::-webkit-scrollbar-track {
+.station-list::-webkit-scrollbar-track {
   background: rgba(255, 255, 255, 0.1);
   border-radius: 3px;
 }
 
-.list-content::-webkit-scrollbar-thumb {
+.station-list::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.3);
   border-radius: 3px;
 }
 
-.list-content::-webkit-scrollbar-thumb:hover {
+.station-list::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.5);
 }
 
-.location-item {
-  padding: 14px 16px;
+.station-item {
+  padding: 12px;
   margin-bottom: 8px;
   background: rgba(255, 255, 255, 0.05);
   border-radius: 6px;
@@ -571,25 +795,32 @@ onMounted(() => {
   border: 1px solid transparent;
 }
 
-.location-item:hover {
+.station-item:hover {
   background: rgba(255, 255, 255, 0.15);
   border-color: rgba(255, 255, 255, 0.3);
-  transform: translateX(-4px);
+  transform: translateX(4px);
 }
 
-.location-name {
+.station-name {
   color: #fff;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 500;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
-.location-coords {
+.station-info {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 12px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.info-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 11px;
 }
 </style>
 

@@ -28,6 +28,64 @@ const robotTypes = ['全部', '干挂式', '分布式', 'AGV']
 // 国家列表
 const countries = ['全部', '中国', '日本', '美国']
 
+// 可搜索下拉框状态
+const robotTypeDropdownOpen = ref(false)
+const countryDropdownOpen = ref(false)
+const countrySearchText = ref('')
+
+// 过滤后的国家选项
+const filteredCountries = ref([...countries])
+
+// 切换下拉框（互斥展开）
+const toggleRobotTypeDropdown = () => {
+  // 如果要打开机器人类型下拉框，先关闭国家下拉框
+  if (!robotTypeDropdownOpen.value) {
+    countryDropdownOpen.value = false
+    countrySearchText.value = ''
+    filteredCountries.value = [...countries]
+  }
+  robotTypeDropdownOpen.value = !robotTypeDropdownOpen.value
+}
+
+const toggleCountryDropdown = () => {
+  // 如果要打开国家下拉框，先关闭机器人类型下拉框
+  if (!countryDropdownOpen.value) {
+    robotTypeDropdownOpen.value = false
+  }
+  countryDropdownOpen.value = !countryDropdownOpen.value
+}
+
+// 搜索过滤函数（仅国家）
+const filterCountryOptions = () => {
+  const searchText = countrySearchText.value.toLowerCase()
+  filteredCountries.value = countries.filter(country => 
+    country.toLowerCase().includes(searchText)
+  )
+}
+
+// 选择选项
+const selectRobotType = (type) => {
+  selectedRobotType.value = type
+  robotTypeDropdownOpen.value = false
+  filterStations()
+}
+
+const selectCountry = (country) => {
+  selectedCountry.value = country
+  countryDropdownOpen.value = false
+  countrySearchText.value = ''
+  filteredCountries.value = [...countries]
+  filterStations()
+}
+
+// 点击外部关闭下拉框
+const closeDropdowns = () => {
+  robotTypeDropdownOpen.value = false
+  countryDropdownOpen.value = false
+  countrySearchText.value = ''
+  filteredCountries.value = [...countries]
+}
+
 // 电站数据列表
 const stationData = ref([
   {
@@ -478,6 +536,9 @@ onMounted(() => {
     startAutoRotation()
   }, 500)  // 延迟0.5秒启动，让初始动画完成
   
+  // 全局点击事件监听 - 点击外部关闭下拉框
+  document.addEventListener('click', closeDropdowns)
+  
   console.log(`缩放阈值：${ZOOM_THRESHOLD / 1000} 千米`)
   console.log('双击图标可自动飞到该位置')
   console.log('💡 提示：初始化和重置后会自动转动，任何操作后停止')
@@ -501,18 +562,67 @@ onMounted(() => {
     <!-- 左侧筛选和电站列表 -->
     <div class="station-panel">
       <!-- 筛选区域 -->
-      <div class="filter-section">
+      <div class="filter-section" @click.stop>
         <div class="filter-group">
           <label class="filter-label">机器人类型</label>
-          <select v-model="selectedRobotType" @change="filterStations" class="filter-select">
-            <option v-for="type in robotTypes" :key="type" :value="type">{{ type }}</option>
-          </select>
+          <div class="custom-select" @click="toggleRobotTypeDropdown">
+            <div class="custom-select-trigger">
+              <span>{{ selectedRobotType }}</span>
+              <span class="arrow" :class="{ 'arrow-up': robotTypeDropdownOpen }">▼</span>
+            </div>
+            <transition name="dropdown">
+              <div v-if="robotTypeDropdownOpen" class="custom-options" @click.stop>
+                <div class="options-list no-search">
+                  <div 
+                    v-for="type in robotTypes" 
+                    :key="type"
+                    class="custom-option"
+                    :class="{ 'selected': type === selectedRobotType }"
+                    @click="selectRobotType(type)"
+                  >
+                    {{ type }}
+                  </div>
+                </div>
+              </div>
+            </transition>
+          </div>
         </div>
         <div class="filter-group">
           <label class="filter-label">国家</label>
-          <select v-model="selectedCountry" @change="filterStations" class="filter-select">
-            <option v-for="country in countries" :key="country" :value="country">{{ country }}</option>
-          </select>
+          <div class="custom-select" @click="toggleCountryDropdown">
+            <div class="custom-select-trigger">
+              <span>{{ selectedCountry }}</span>
+              <span class="arrow" :class="{ 'arrow-up': countryDropdownOpen }">▼</span>
+            </div>
+            <transition name="dropdown">
+              <div v-if="countryDropdownOpen" class="custom-options" @click.stop>
+                <div class="search-box">
+                  <input 
+                    type="text" 
+                    v-model="countrySearchText" 
+                    @input="filterCountryOptions"
+                    placeholder="搜索国家..."
+                    class="search-input"
+                    @click.stop
+                  />
+                </div>
+                <div class="options-list">
+                  <div 
+                    v-for="country in filteredCountries" 
+                    :key="country"
+                    class="custom-option"
+                    :class="{ 'selected': country === selectedCountry }"
+                    @click="selectCountry(country)"
+                  >
+                    {{ country }}
+                  </div>
+                  <div v-if="filteredCountries.length === 0" class="no-options">
+                    无匹配选项
+                  </div>
+                </div>
+              </div>
+            </transition>
+          </div>
         </div>
       </div>
       
@@ -884,7 +994,13 @@ onMounted(() => {
   margin-bottom: 6px;
 }
 
-.filter-select {
+/* 自定义下拉框 */
+.custom-select {
+  position: relative;
+  width: 100%;
+}
+
+.custom-select-trigger {
   width: 100%;
   padding: 8px 12px;
   background: rgba(255, 255, 255, 0.1);
@@ -894,16 +1010,130 @@ onMounted(() => {
   font-size: 14px;
   cursor: pointer;
   transition: all 0.3s ease;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
-.filter-select:hover {
+.custom-select-trigger:hover {
   background: rgba(255, 255, 255, 0.15);
   border-color: rgba(255, 255, 255, 0.3);
 }
 
-.filter-select option {
-  background: #1a1a1a;
+.custom-select-trigger .arrow {
+  font-size: 10px;
+  transition: transform 0.3s ease;
+}
+
+.custom-select-trigger .arrow.arrow-up {
+  transform: rotate(180deg);
+}
+
+.custom-options {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: rgba(26, 26, 26, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  overflow: hidden;
+  z-index: 1000;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.search-box {
+  padding: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.search-input {
+  width: 100%;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
   color: #fff;
+  font-size: 13px;
+  outline: none;
+  transition: all 0.3s ease;
+}
+
+.search-input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.search-input:focus {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 107, 53, 0.5);
+}
+
+.options-list {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.options-list.no-search {
+  max-height: 160px;
+}
+
+.options-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.options-list::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.options-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.options-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.custom-option {
+  padding: 10px 12px;
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.custom-option:hover {
+  background: rgba(255, 107, 53, 0.2);
+}
+
+.custom-option.selected {
+  background: rgba(255, 107, 53, 0.3);
+  color: #ff6b35;
+  font-weight: 500;
+}
+
+.no-options {
+  padding: 10px 12px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 14px;
+  text-align: center;
+}
+
+/* 下拉框动画 */
+.dropdown-enter-active,
+.dropdown-leave-active {
+  transition: all 0.3s ease;
+}
+
+.dropdown-enter-from {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.dropdown-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
 }
 
 /* 列表标题 */

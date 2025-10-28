@@ -1,6 +1,8 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import * as Cesium from 'cesium'
+import { getStationList, getCountries, getProvinces, getStationStat } from '@/api/station.ts'
+import { RobotType } from '@/types/station.ts'
 
 const cesiumContainer = ref(null)
 let viewer = null
@@ -18,48 +20,87 @@ const selectedLocation = ref(null)
 // 悬浮提示标签
 let hoverLabel = null
 
+// 加载状态
+const loading = ref(false)
+const loadError = ref(null)
+
 // 筛选条件
 const selectedRobotType = ref('全部')
 const selectedCountry = ref('全部')
+const selectedProvince = ref('全部')
 
 // 机器人类型列表
 const robotTypes = ['全部', '干挂式', '分布式', 'AGV']
 
-// 国家列表
-const countries = ['全部', '中国', '日本', '美国']
+// 国家列表（从接口获取）
+const countries = ref(['全部'])
+
+// 省份列表（从接口获取）
+const provinces = ref(['全部'])
 
 // 可搜索下拉框状态
 const robotTypeDropdownOpen = ref(false)
 const countryDropdownOpen = ref(false)
+const provinceDropdownOpen = ref(false)
 const countrySearchText = ref('')
+const provinceSearchText = ref('')
 
-// 过滤后的国家选项
-const filteredCountries = ref([...countries])
+// 过滤后的选项
+const filteredCountries = ref(['全部'])
+const filteredProvinces = ref(['全部'])
+
+// 电站统计数据
+const stationStats = ref({
+  stationNum: 0,
+  robotNum: 0,
+  stationCapacity: 0
+})
 
 // 切换下拉框（互斥展开）
 const toggleRobotTypeDropdown = () => {
-  // 如果要打开机器人类型下拉框，先关闭国家下拉框
   if (!robotTypeDropdownOpen.value) {
     countryDropdownOpen.value = false
+    provinceDropdownOpen.value = false
     countrySearchText.value = ''
-    filteredCountries.value = [...countries]
+    provinceSearchText.value = ''
+    filteredCountries.value = [...countries.value]
+    filteredProvinces.value = [...provinces.value]
   }
   robotTypeDropdownOpen.value = !robotTypeDropdownOpen.value
 }
 
 const toggleCountryDropdown = () => {
-  // 如果要打开国家下拉框，先关闭机器人类型下拉框
   if (!countryDropdownOpen.value) {
     robotTypeDropdownOpen.value = false
+    provinceDropdownOpen.value = false
+    provinceSearchText.value = ''
+    filteredProvinces.value = [...provinces.value]
   }
   countryDropdownOpen.value = !countryDropdownOpen.value
 }
 
-// 搜索过滤函数（仅国家）
+const toggleProvinceDropdown = () => {
+  if (!provinceDropdownOpen.value) {
+    robotTypeDropdownOpen.value = false
+    countryDropdownOpen.value = false
+    countrySearchText.value = ''
+    filteredCountries.value = [...countries.value]
+  }
+  provinceDropdownOpen.value = !provinceDropdownOpen.value
+}
+
+// 搜索过滤函数
 const filterCountryOptions = () => {
   const searchText = countrySearchText.value.toLowerCase()
-  filteredCountries.value = countries.filter(country => 
+  filteredCountries.value = countries.value.filter(country => 
     country.toLowerCase().includes(searchText)
+  )
+}
+
+const filterProvinceOptions = () => {
+  const searchText = provinceSearchText.value.toLowerCase()
+  filteredProvinces.value = provinces.value.filter(province => 
+    province.toLowerCase().includes(searchText)
   )
 }
 
@@ -67,147 +108,186 @@ const filterCountryOptions = () => {
 const selectRobotType = (type) => {
   selectedRobotType.value = type
   robotTypeDropdownOpen.value = false
-  filterStations()
+  // 重新获取电站数据和统计数据
+  fetchStationData()
+  fetchStationStats()
 }
 
 const selectCountry = (country) => {
   selectedCountry.value = country
   countryDropdownOpen.value = false
   countrySearchText.value = ''
-  filteredCountries.value = [...countries]
-  filterStations()
+  filteredCountries.value = [...countries.value]
+  // 重新获取电站数据和统计数据
+  fetchStationData()
+  fetchStationStats()
+}
+
+const selectProvince = (province) => {
+  selectedProvince.value = province
+  provinceDropdownOpen.value = false
+  provinceSearchText.value = ''
+  filteredProvinces.value = [...provinces.value]
+  // 重新获取电站数据和统计数据
+  fetchStationData()
+  fetchStationStats()
 }
 
 // 点击外部关闭下拉框
 const closeDropdowns = () => {
   robotTypeDropdownOpen.value = false
   countryDropdownOpen.value = false
+  provinceDropdownOpen.value = false
   countrySearchText.value = ''
-  filteredCountries.value = [...countries]
+  provinceSearchText.value = ''
+  filteredCountries.value = [...countries.value]
+  filteredProvinces.value = [...provinces.value]
 }
 
 // 电站数据列表
-const stationData = ref([
-  {
-    id: 1,
-    name: '安徽合肥光伏电站',
-    longitude: 117.137899,
-    latitude: 31.830709,
-    cameraHeight: 1000,
-    robotCount: 15,
-    robotTypes: ['干挂式', '分布式'],
-    description: '大型地面光伏电站，采用先进的清洁机器人系统',
-    capacity: '100MW',
-    country: '中国',
-    province: '安徽省',
-    owner: '国家电投',
-    epc: '中国电建',
-    operation: '阳光电源',
-    image: 'https://via.placeholder.com/400x200?text=Hefei+Station'
-  },
-  {
-    id: 2,
-    name: '北京分布式电站',
-    longitude: 116.4074,
-    latitude: 39.9042,
-    cameraHeight: 1000,
-    robotCount: 8,
-    robotTypes: ['分布式', 'AGV'],
-    description: '城市分布式光伏项目，智能运维管理',
-    capacity: '50MW',
-    country: '中国',
-    province: '北京市',
-    owner: '华能集团',
-    epc: '中国能建',
-    operation: '远景能源',
-    image: 'https://via.placeholder.com/400x200?text=Beijing+Station'
-  },
-  {
-    id: 3,
-    name: '上海智能光伏园区',
-    longitude: 121.4737,
-    latitude: 31.2304,
-    cameraHeight: 1000,
-    robotCount: 20,
-    robotTypes: ['干挂式', 'AGV'],
-    description: '工业园区屋顶光伏，全自动清洁系统',
-    capacity: '80MW',
-    country: '中国',
-    province: '上海市',
-    owner: '上海电力',
-    epc: '上海电气',
-    operation: '晶科能源',
-    image: 'https://via.placeholder.com/400x200?text=Shanghai+Station'
-  },
-  {
-    id: 4,
-    name: '广州新能源基地',
-    longitude: 113.2644,
-    latitude: 23.1291,
-    cameraHeight: 1000,
-    robotCount: 12,
-    robotTypes: ['干挂式', '分布式'],
-    description: '综合能源示范项目，多种机器人协同作业',
-    capacity: '120MW',
-    country: '中国',
-    province: '广东省',
-    owner: '南方电网',
-    epc: '中国电建',
-    operation: '隆基绿能',
-    image: 'https://via.placeholder.com/400x200?text=Guangzhou+Station'
-  },
-  {
-    id: 5,
-    name: '深圳科技园光伏站',
-    longitude: 114.0579,
-    latitude: 22.5431,
-    cameraHeight: 1000,
-    robotCount: 10,
-    robotTypes: ['AGV'],
-    description: '高新技术园区配套光伏电站',
-    capacity: '60MW',
-    country: '中国',
-    province: '广东省',
-    owner: '华为数字能源',
-    epc: '比亚迪',
-    operation: '特变电工',
-    image: 'https://via.placeholder.com/400x200?text=Shenzhen+Station'
-  },
-  {
-    id: 6,
-    name: '成都西部电站',
-    longitude: 104.0668,
-    latitude: 30.5728,
-    cameraHeight: 1000,
-    robotCount: 18,
-    robotTypes: ['干挂式', '分布式', 'AGV'],
-    description: '西部大型光伏基地，全套智能运维',
-    capacity: '150MW',
-    country: '中国',
-    province: '四川省',
-    owner: '国家能源集团',
-    epc: '中国电建',
-    operation: '协鑫集团',
-    image: 'https://via.placeholder.com/400x200?text=Chengdu+Station'
-  }
-])
+const stationData = ref([])
 
-// 筛选后的电站列表
-const filteredStations = ref([])
-
-// 筛选函数
-const filterStations = () => {
-  filteredStations.value = stationData.value.filter(station => {
-    const robotTypeMatch = selectedRobotType.value === '全部' || 
-                          station.robotTypes.includes(selectedRobotType.value)
-    const countryMatch = selectedCountry.value === '全部' || 
-                        station.country === selectedCountry.value
-    return robotTypeMatch && countryMatch
-  })
+// 机器人类型映射（后端枚举转前端显示文本）
+const robotTypeMap = {
+  [RobotType.ROBOT]: '干挂式',
+  [RobotType.TRACKLESS]: '分布式',
+  [RobotType.AGV]: 'AGV',
 }
 
-// 初始化筛选列表
-filterStations()
+// 机器人类型映射（前端显示文本转后端枚举）
+const robotTypeReverseMap = {
+  '干挂式': RobotType.ROBOT,
+  '分布式': RobotType.TRACKLESS,
+  'AGV': RobotType.AGV
+}
+
+// 从后端获取筛选选项数据
+const fetchFilterOptions = async () => {
+  try {
+    // 获取国家列表
+    const countryList = await getCountries()
+    countries.value = ['全部', ...countryList]
+    filteredCountries.value = [...countries.value]
+    
+    // 获取省份列表
+    const provinceList = await getProvinces()
+    provinces.value = ['全部', ...provinceList]
+    filteredProvinces.value = [...provinces.value]
+    
+    console.log('筛选选项加载成功 - 国家:', countryList.length, '个, 省份:', provinceList.length, '个')
+  } catch (error) {
+    console.error('获取筛选选项失败:', error)
+  }
+}
+
+// 从后端获取电站统计数据
+const fetchStationStats = async () => {
+  loading.value = true
+  loadError.value = null
+  
+  try {
+    // 构建查询参数
+    const queryObj = {}
+    
+    // 机器人类型
+    if (selectedRobotType.value !== '全部') {
+      queryObj.robotType = robotTypeReverseMap[selectedRobotType.value]
+    }
+    
+    // 国家
+    if (selectedCountry.value !== '全部') {
+      queryObj.country = selectedCountry.value
+    }
+    
+    // 省份
+    if (selectedProvince.value !== '全部') {
+      queryObj.province = selectedProvince.value
+    }
+    
+    // 调用统计接口
+    const stats = await getStationStat(queryObj)
+    stationStats.value = stats
+    
+    console.log('电站统计数据:', stats)
+  } catch (error) {
+    console.error('获取电站统计数据失败:', error)
+    loadError.value = '加载电站数据失败，请稍后重试'
+    stationStats.value = {
+      stationNum: 0,
+      robotNum: 0,
+      stationCapacity: 0
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
+// 从后端获取电站列表数据（用于地图标记）
+const fetchStationData = async () => {
+  loading.value = true
+  loadError.value = null
+  
+  try {
+    // 构建查询参数
+    const queryObj = {}
+    
+    // 机器人类型
+    if (selectedRobotType.value !== '全部') {
+      queryObj.robotType = robotTypeReverseMap[selectedRobotType.value]
+    }
+    
+    // 国家
+    if (selectedCountry.value !== '全部') {
+      queryObj.country = selectedCountry.value
+    }
+    
+    // 省份
+    if (selectedProvince.value !== '全部') {
+      queryObj.province = selectedProvince.value
+    }
+    
+    // 调用接口获取数据
+    const response = await getStationList(queryObj, { page: 0, size: 10000 })
+    
+    // 数据转换：将后端数据格式转换为前端需要的格式
+    stationData.value = response.content.map(station => {
+      const lon = station.lon != null ? parseFloat(station.lon) : null
+      const lat = station.lat != null ? parseFloat(station.lat) : null
+      
+      return {
+        id: station.id,
+        name: station.name,
+        longitude: lon, // 可能为 null
+        latitude: lat, // 可能为 null
+        cameraHeight: 1000, // 默认相机高度
+        robotCount: station.robotNum || 0,
+        robotTypes: [robotTypeMap[station.robotType] || station.robotType || '未知'], // 转换为数组
+        description: station.description || '暂无描述',
+        capacity: station.capacity ? `${station.capacity}MW` : '未知',
+        country: station.country || '未知',
+        province: station.province || '未知',
+        owner: station.owner || '未知',
+        epc: station.epc || '未知',
+        operation: station.operation || '未知',
+        image: station.image || 'https://via.placeholder.com/400x200?text=Station'
+      }
+    })
+    
+    console.log('电站数据加载成功:', stationData.value.length, '个电站')
+    
+    // 如果 Cesium 已初始化，更新地图标记
+    if (viewer) {
+      addAllMarkers()
+    }
+  } catch (error) {
+    console.error('获取电站列表失败:', error)
+    loadError.value = '加载电站数据失败，请稍后重试'
+    // 使用空数据
+    stationData.value = []
+  } finally {
+    loading.value = false
+  }
+}
 
 // 创建 SVG 图标（Data URI 格式）
 const createSVGIcon = (color = '#FF4444') => {
@@ -259,6 +339,47 @@ const addLocationMarker = (location) => {
   return entity
 }
 
+// 批量添加所有标记点
+const addAllMarkers = () => {
+  // 清除已有的标记点（如果有）
+  viewer.entities.removeAll()
+  
+  // 重新创建悬浮提示标签
+  hoverLabel = viewer.entities.add({
+    label: {
+      show: false,
+      showBackground: true,
+      font: '14px sans-serif',
+      backgroundColor: new Cesium.Color(0, 0, 0, 0.8),
+      fillColor: Cesium.Color.WHITE,
+      pixelOffset: new Cesium.Cartesian2(0, -40),
+      verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+      disableDepthTestDistance: Number.POSITIVE_INFINITY
+    }
+  })
+  
+  // 添加所有电站标记点（只添加有效经纬度的）
+  let validCount = 0
+  let invalidCount = 0
+  
+  stationData.value.forEach(station => {
+    // 检查经纬度是否有效
+    if (station.longitude != null && station.latitude != null && 
+        !isNaN(station.longitude) && !isNaN(station.latitude)) {
+      addLocationMarker(station)
+      validCount++
+    } else {
+      invalidCount++
+      console.warn(`电站 "${station.name}" 经纬度无效，跳过地图标记`)
+    }
+  })
+  
+  console.log(`已添加 ${validCount} 个电站标记点，跳过 ${invalidCount} 个无效经纬度的电站`)
+  
+  // 更新标记显示状态
+  updateMarkersDisplay()
+}
+
 // 更新标记显示状态（根据相机高度）
 const updateMarkersDisplay = () => {
   const cameraHeight = viewer.camera.positionCartographic.height
@@ -284,6 +405,13 @@ const flyToLocation = (location) => {
   
   // 显示详情面板
   showDetailPanel(location)
+  
+  // 检查经纬度是否有效
+  if (location.longitude == null || location.latitude == null || 
+      isNaN(location.longitude) || isNaN(location.latitude)) {
+    console.warn(`电站 "${location.name}" 没有有效的经纬度，无法定位`)
+    return
+  }
   
   viewer.camera.flyTo({
     destination: Cesium.Cartesian3.fromDegrees(
@@ -415,12 +543,10 @@ onMounted(() => {
     }
   })
   
-  // 读取电站数据列表，绘制所有标记点
-  stationData.value.forEach(station => {
-    addLocationMarker(station)
-  })
-  
-  console.log(`已添加 ${stationData.value.length} 个电站标记点`)
+  // 初始化完成后，加载筛选选项和电站数据
+  fetchFilterOptions()
+  fetchStationData()
+  fetchStationStats()
   
   // 创建悬浮提示标签
   hoverLabel = viewer.entities.add({
@@ -559,6 +685,33 @@ onMounted(() => {
       </svg>
     </button>
     
+    <!-- 顶部统计面板 -->
+    <div class="stats-panel">
+      <div class="stats-item">
+        <div class="stats-icon">🏭</div>
+        <div class="stats-content">
+          <div class="stats-label">电站数量</div>
+          <div class="stats-value">{{ stationStats.stationNum }}</div>
+        </div>
+      </div>
+      <div class="stats-divider"></div>
+      <div class="stats-item">
+        <div class="stats-icon">🤖</div>
+        <div class="stats-content">
+          <div class="stats-label">机器人数量</div>
+          <div class="stats-value">{{ stationStats.robotNum }}</div>
+        </div>
+      </div>
+      <div class="stats-divider"></div>
+      <div class="stats-item">
+        <div class="stats-icon">⚡</div>
+        <div class="stats-content">
+          <div class="stats-label">总装机容量</div>
+          <div class="stats-value">{{ stationStats.stationCapacity }} <span class="stats-unit">MW</span></div>
+        </div>
+      </div>
+    </div>
+    
     <!-- 左侧筛选和电站列表 -->
     <div class="station-panel">
       <!-- 筛选区域 -->
@@ -624,13 +777,50 @@ onMounted(() => {
             </transition>
           </div>
         </div>
+        <div class="filter-group">
+          <label class="filter-label">省份</label>
+          <div class="custom-select" @click="toggleProvinceDropdown">
+            <div class="custom-select-trigger">
+              <span>{{ selectedProvince }}</span>
+              <span class="arrow" :class="{ 'arrow-up': provinceDropdownOpen }">▼</span>
+            </div>
+            <transition name="dropdown">
+              <div v-if="provinceDropdownOpen" class="custom-options" @click.stop>
+                <div class="search-box">
+                  <input 
+                    type="text" 
+                    v-model="provinceSearchText" 
+                    @input="filterProvinceOptions"
+                    placeholder="搜索省份..."
+                    class="search-input"
+                    @click.stop
+                  />
+                </div>
+                <div class="options-list">
+                  <div 
+                    v-for="province in filteredProvinces" 
+                    :key="province"
+                    class="custom-option"
+                    :class="{ 'selected': province === selectedProvince }"
+                    @click="selectProvince(province)"
+                  >
+                    {{ province }}
+                  </div>
+                  <div v-if="filteredProvinces.length === 0" class="no-options">
+                    无匹配选项
+                  </div>
+                </div>
+              </div>
+            </transition>
+          </div>
+        </div>
       </div>
       
       <!-- 电站列表 -->
-      <div class="list-header">电站列表 ({{ filteredStations.length }})</div>
+      <div class="list-header">电站列表 ({{ stationData.length }})</div>
       <div class="station-list">
         <div 
-          v-for="station in filteredStations" 
+          v-for="station in stationData" 
           :key="station.id"
           class="station-item"
           @click="flyToLocation(station)"
@@ -730,6 +920,74 @@ onMounted(() => {
 .cesium-container {
   width: 100%;
   height: 100%;
+}
+
+/* 顶部统计面板 */
+.stats-panel {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: rgba(0, 0, 0, 0.75);
+  border-radius: 8px;
+  padding: 16px 24px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+}
+
+.stats-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 20px;
+}
+
+.stats-item:first-child {
+  padding-left: 0;
+}
+
+.stats-item:last-child {
+  padding-right: 0;
+}
+
+.stats-icon {
+  font-size: 32px;
+  line-height: 1;
+}
+
+.stats-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stats-label {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.stats-value {
+  font-size: 24px;
+  font-weight: bold;
+  color: #fff;
+  line-height: 1;
+}
+
+.stats-unit {
+  font-size: 14px;
+  font-weight: normal;
+  color: rgba(255, 255, 255, 0.8);
+  margin-left: 4px;
+}
+
+.stats-divider {
+  width: 1px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.2);
 }
 
 /* 重置视角按钮 - 模仿 Cesium 工具栏按钮样式 */

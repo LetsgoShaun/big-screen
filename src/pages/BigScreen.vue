@@ -383,6 +383,9 @@ onMounted(() => {
     updateMarkersDisplay()
   })
   
+  // 禁用 Cesium 默认的双击聚焦行为
+  viewer.screenSpaceEventHandler.removeInputAction(Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK)
+  
   // 事件处理器
   const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas)
   
@@ -444,10 +447,10 @@ onMounted(() => {
   
   // ========== 用户交互监听 - 任何操作都停止自转 ==========
   
-  // 监听相机移动开始事件
-  viewer.camera.moveStart.addEventListener(() => {
-    stopAutoRotation()
-  })
+  // // 监听相机移动开始事件
+  // viewer.camera.moveStart.addEventListener(() => {
+  //   stopAutoRotation()
+  // })
   
   // 监听鼠标按下事件（拖动地球）
   const screenHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas)

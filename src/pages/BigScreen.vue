@@ -115,10 +115,36 @@ const filterProvinceOptions = () => {
   )
 }
 
+// 获取电站机器人图片
+const getStationRobotImage = (station) => {
+  // 获取电站的主要机器人类型
+  const mainRobotType = station.robotTypes && station.robotTypes[0] ? station.robotTypes[0] : '干挂式'
+  
+  // 根据机器人类型返回对应图片
+  const imageMap = {
+    '干挂式': '/media/PVRailed.png',
+    '分布式': '/media/trackless.png',
+    'AGV': '/media/AGV.png'
+  }
+  
+  return imageMap[mainRobotType] || '/media/all.png'
+}
+
+// 获取机器人类型图片
+const getRobotTypeImage = (type) => {
+  const imageMap = {
+    '全部': '/media/all.png',
+    '干挂式': '/media/PVRailed.png',
+    '分布式': '/media/trackless.png', 
+    'AGV': '/media/AGV.png',
+    // '组件安装': '/media/PVRailed.png'
+  }
+  return imageMap[type] || '/media/PVRailed.png'
+}
+
 // 选择选项
 const selectRobotType = (type) => {
   selectedRobotType.value = type
-  robotTypeDropdownOpen.value = false
   // 重新获取电站数据和统计数据
   fetchStationData()
   fetchStationStats()
@@ -129,6 +155,15 @@ const selectCountry = (country) => {
   countryDropdownOpen.value = false
   countrySearchText.value = ''
   filteredCountries.value = [...countries.value]
+  
+  // 如果选择的不是"中国"，重置省份选择并隐藏省份下拉框
+  if (country !== '中国') {
+    selectedProvince.value = '全部'
+    provinceDropdownOpen.value = false
+    provinceSearchText.value = ''
+    filteredProvinces.value = [...provinces.value]
+  }
+  
   // 重新获取电站数据和统计数据
   fetchStationData()
   fetchStationStats()
@@ -202,7 +237,8 @@ const robotTypeMap = {
 const robotTypeReverseMap = {
   '干挂式': RobotType.ROBOT,
   '分布式': RobotType.TRACKLESS,
-  'AGV': RobotType.AGV
+  'AGV': RobotType.AGV,
+  // '组件安装': 'COMPONENT_INSTALL' // 新增组件安装类型
 }
 
 // 从后端获取筛选选项数据
@@ -564,9 +600,9 @@ const initializeCesium = () => {
   viewer = new Cesium.Viewer(cesiumContainer.value, {
     animation: false,           // 隐藏动画控件
     timeline: false,            // 隐藏时间轴
-    baseLayerPicker: true,      // 显示底图选择器
-    fullscreenButton: true,    // 隐藏全屏按钮
-    geocoder: false,            // 隐藏地名查找控件
+    baseLayerPicker: true,      // 显示底图选择器（用CSS隐藏）
+    fullscreenButton: true,    // 显示全屏按钮
+    geocoder: true,            // 隐藏地名查找控件
     homeButton: false,          // 隐藏Home按钮
     sceneModePicker: false,     // 隐藏场景模式选择器（2D/3D切换）
     navigationHelpButton: false,// 隐藏导航帮助按钮
@@ -718,8 +754,8 @@ const initializeCesium = () => {
 onMounted(() => {
   // 页面加载时不立即初始化 Cesium，等待密码验证
   // 如果需要开发时跳过密码，可以取消注释下面这行
-  // isAuthenticated.value = true
-  // initializeCesium()
+  isAuthenticated.value = true
+  initializeCesium()
 })
 </script>
 
@@ -769,7 +805,9 @@ onMounted(() => {
     <!-- 顶部统计面板 -->
     <div v-if="isAuthenticated" class="stats-panel">
       <div class="stats-item">
-        <div class="stats-icon">🏭</div>
+        <div class="stats-icon">
+          <img src="/media/lightning-icon.svg" alt="电站" />
+        </div>
         <div class="stats-content">
           <div class="stats-label">电站数量</div>
           <div class="stats-value">{{ stationStats.stationNum }}</div>
@@ -777,7 +815,9 @@ onMounted(() => {
       </div>
       <div class="stats-divider"></div>
       <div class="stats-item">
-        <div class="stats-icon">🤖</div>
+        <div class="stats-icon" style="width: 50px;">
+          <img src="/media/all.png" alt="机器人" />
+        </div>
         <div class="stats-content">
           <div class="stats-label">机器人数量</div>
           <div class="stats-value">{{ stationStats.robotNum }}</div>
@@ -785,9 +825,11 @@ onMounted(() => {
       </div>
       <div class="stats-divider"></div>
       <div class="stats-item">
-        <div class="stats-icon">⚡</div>
+        <div class="stats-icon">
+          <img src="/media/factory-icon.svg" alt="电站容量总和" />
+        </div>
         <div class="stats-content">
-          <div class="stats-label">总装机容量</div>
+          <div class="stats-label">电站容量总和</div>
           <div class="stats-value">{{ stationStats.stationCapacity }} <span class="stats-unit">MW</span></div>
         </div>
       </div>
@@ -799,26 +841,23 @@ onMounted(() => {
       <div class="filter-section" @click.stop>
         <div class="filter-group">
           <label class="filter-label">机器人类型</label>
-          <div class="custom-select" @click="toggleRobotTypeDropdown">
-            <div class="custom-select-trigger">
-              <span>{{ selectedRobotType }}</span>
-              <span class="arrow" :class="{ 'arrow-up': robotTypeDropdownOpen }">▼</span>
+          <div class="robot-type-radio-group">
+            <div 
+              v-for="type in robotTypes" 
+              :key="type"
+              class="robot-type-option"
+              @click="selectRobotType(type)"
+            >
+              <input 
+                type="radio" 
+                :id="`robot-type-${type}`"
+                :name="'robotType'"
+                :value="type"
+                v-model="selectedRobotType"
+                @change="selectRobotType(type)"
+              />
+              <img :src="getRobotTypeImage(type)" :alt="type" />
             </div>
-            <transition name="dropdown">
-              <div v-if="robotTypeDropdownOpen" class="custom-options" @click.stop>
-                <div class="options-list no-search">
-                  <div 
-                    v-for="type in robotTypes" 
-                    :key="type"
-                    class="custom-option"
-                    :class="{ 'selected': type === selectedRobotType }"
-                    @click="selectRobotType(type)"
-                  >
-                    {{ type }}
-                  </div>
-                </div>
-              </div>
-            </transition>
           </div>
         </div>
         <div class="filter-group">
@@ -858,7 +897,7 @@ onMounted(() => {
             </transition>
           </div>
         </div>
-        <div class="filter-group">
+        <div v-if="selectedCountry === '中国'" class="filter-group">
           <label class="filter-label">省份</label>
           <div class="custom-select" @click="toggleProvinceDropdown">
             <div class="custom-select-trigger">
@@ -906,10 +945,29 @@ onMounted(() => {
           class="station-item"
           @click="flyToLocation(station)"
         >
-          <div class="station-name">{{ station.name }}</div>
-          <div class="station-info">
-            <span class="info-tag">🤖 {{ station.robotCount }}台</span>
-            <span class="info-tag">⚡ {{ station.capacity }}</span>
+          <div class="station-header">
+            <div class="station-name">{{ station.name }}</div>
+            <div class="station-location">{{ station.country }} / {{ station.province }}</div>
+          </div>
+          <div class="station-stats">
+            <div class="stat-item">
+              <div class="stat-icon">
+                <img :src="getStationRobotImage(station)" :alt="station.robotTypes[0]" />
+              </div>
+              <div class="stat-content">
+                <div class="stat-number">{{ station.robotCount }}</div>
+                <div class="stat-label">台机器人</div>
+              </div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-icon">
+                <img src="/media/factory-icon.svg" alt="电站容量总和" />
+              </div>
+              <div class="stat-content">
+                <div class="stat-number">{{ station.capacity.replace('MW', '') }}</div>
+                <div class="stat-label">MW</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -934,10 +992,10 @@ onMounted(() => {
               <div class="detail-label">电站名称</div>
               <div class="detail-value">{{ selectedLocation.name }}</div>
             </div>
-            <div class="detail-item">
+            <!-- <div class="detail-item">
               <div class="detail-label">经纬度</div>
               <div class="detail-value">{{ selectedLocation.longitude }}°, {{ selectedLocation.latitude }}°</div>
-            </div>
+            </div> -->
             <div class="detail-item">
               <div class="detail-label">机器人数量</div>
               <div class="detail-value">{{ selectedLocation.robotCount }} 台</div>
@@ -976,11 +1034,11 @@ onMounted(() => {
             </div>
           </div>
         </div>
-        <div class="detail-footer">
+        <!-- <div class="detail-footer">
           <button class="action-btn" @click="flyToLocation(selectedLocation)">
             📍 重新定位
           </button>
-        </div>
+        </div> -->
       </div>
     </transition>
   </div>
@@ -989,6 +1047,15 @@ onMounted(() => {
 <style scoped>
 /* 隐藏 Cesium 底部版权信息 - 使用深度选择器 */
 :deep(.cesium-widget-credits) {
+  display: none !important;
+}
+
+/* 隐藏 Cesium 底图选择器按钮 */
+:deep(.cesium-viewer-toolbar) {
+  display: none !important;
+}
+
+:deep(.cesium-baseLayerPicker-button) {
   display: none !important;
 }
 
@@ -1171,6 +1238,12 @@ onMounted(() => {
   line-height: 1;
 }
 
+.stats-icon img {
+  width: 40px;
+  height: 40px;
+  filter: brightness(0) saturate(100%) invert(100%);
+}
+
 .stats-content {
   display: flex;
   flex-direction: column;
@@ -1240,16 +1313,18 @@ onMounted(() => {
 /* 右侧详情面板 */
 .detail-panel {
   position: absolute;
-  top: 50px;
-  right: 20px;
-  width: 380px;
-  max-height: calc(100vh - 40px);
+  top: 20px;
+  right: 10px;
+  width: 300px;
+  height: calc(100vh - 40px);
   background: rgba(0, 0, 0, 0.75);
-  border-radius: 8px;
+  border-radius: 0;
   overflow: hidden;
   backdrop-filter: blur(10px);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
   z-index: 1000;
+  display: flex;
+  flex-direction: column;
 }
 
 /* 电站图片 */
@@ -1327,7 +1402,7 @@ onMounted(() => {
 
 .detail-content {
   padding: 10px;
-  max-height: calc(100vh - 140px);
+  flex: 1;
   overflow-y: auto;
 }
 
@@ -1429,9 +1504,9 @@ onMounted(() => {
 .station-panel {
   position: absolute;
   top: 20px;
-  left: 20px;
-  width: 320px;
-  max-height: calc(100vh - 40px);
+  left: 10px;
+  width: 300px;
+  height: calc(100vh - 40px);
   background: rgba(0, 0, 0, 0.75);
   border-radius: 8px;
   overflow: hidden;
@@ -1462,6 +1537,36 @@ onMounted(() => {
   color: rgba(255, 255, 255, 0.8);
   font-size: 12px;
   margin-bottom: 6px;
+}
+
+/* 机器人类型单选按钮组 */
+.robot-type-radio-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 12px;
+}
+
+.robot-type-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.robot-type-option input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #007bff;
+}
+
+.robot-type-option img {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 4px;
 }
 
 /* 自定义下拉框 */
@@ -1621,6 +1726,7 @@ onMounted(() => {
   flex: 1;
   overflow-y: auto;
   padding: 10px;
+  min-height: 0;
 }
 
 .station-list::-webkit-scrollbar {
@@ -1642,10 +1748,10 @@ onMounted(() => {
 }
 
 .station-item {
-  padding: 12px;
-  margin-bottom: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
   background: rgba(255, 255, 255, 0.05);
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
   transition: all 0.3s ease;
   border: 1px solid transparent;
@@ -1657,26 +1763,68 @@ onMounted(() => {
   transform: translateX(4px);
 }
 
+.station-header {
+  margin-bottom: 12px;
+}
+
 .station-name {
   color: #fff;
-  font-size: 14px;
-  font-weight: 500;
-  margin-bottom: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  line-height: 1.2;
 }
 
-.station-info {
+.station-location {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.station-stats {
   display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 16px;
 }
 
-.info-tag {
-  display: inline-block;
-  padding: 2px 8px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
-  color: rgba(255, 255, 255, 0.8);
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.stat-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.stat-icon img {
+  width: 35px;
+  height: 35px;
+  object-fit: cover;
+  border-radius: 2px;
+  filter: brightness(0) saturate(100%) invert(100%);
+}
+
+.stat-content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.stat-number {
+  color: #fff;
+  font-size: 20px;
+  font-weight: bold;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+
+.stat-label {
+  color: rgba(255, 255, 255, 0.7);
   font-size: 11px;
+  line-height: 1;
 }
 </style>
 

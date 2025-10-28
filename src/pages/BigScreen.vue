@@ -142,7 +142,7 @@ const getStationRobotImage = (station) => {
   
   // 根据机器人类型返回对应图片
   const imageMap = {
-    '干挂式': '/media/PVRailed.png',
+    '干挂式': '/media/PVRailed1200.png',
     '分布式': '/media/trackless.png',
     'AGV': '/media/AGV.png'
   }
@@ -154,7 +154,7 @@ const getStationRobotImage = (station) => {
 const getSelectedRobotTypeImage = () => {
   const imageMap = {
     '全部': '/media/all.png',
-    '干挂式': '/media/PVRailed.png',
+    '干挂式': '/media/PVRailed1200.png',
     '分布式': '/media/trackless.png',
     'AGV': '/media/AGV.png'
   }
@@ -162,16 +162,31 @@ const getSelectedRobotTypeImage = () => {
   return imageMap[selectedRobotType.value] || '/media/all.png'
 }
 
+// 格式化容量显示
+const formatCapacity = (capacity) => {
+  if (capacity >= 1000) {
+    return {
+      value: (capacity / 1000).toFixed(1),
+      unit: 'GW'
+    }
+  } else {
+    return {
+      value: capacity.toString(),
+      unit: 'MW'
+    }
+  }
+}
+
 // 获取机器人类型图片
 const getRobotTypeImage = (type) => {
   const imageMap = {
     '全部': '/media/all.png',
-    '干挂式': '/media/PVRailed.png',
+    '干挂式': '/media/PVRailed1200.png',
     '分布式': '/media/trackless.png', 
     'AGV': '/media/AGV.png',
-    // '组件安装': '/media/PVRailed.png'
+    // '组件安装': '/media/PVRailed1200.png'
   }
-  return imageMap[type] || '/media/PVRailed.png'
+  return imageMap[type] || '/media/PVRailed1200.png'
 }
 
 // 选择选项
@@ -448,29 +463,28 @@ const createSVGIcon = (color = '#FF4444') => {
   return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg)
 }
 
-// 绘制标记点的函数（同时添加小红点和SVG图标）
+// 绘制标记点的函数（根据机器人数量决定显示方式）
 const addLocationMarker = (location) => {
   const entity = viewer.entities.add({
     name: location.name,
     position: Cesium.Cartesian3.fromDegrees(location.longitude, location.latitude),
-    // 小红点（远距离显示）
+    // 小红点（机器人数量小于1000时显示）
     point: {
       pixelSize: 7,
       color: Cesium.Color.RED,
       outlineColor: Cesium.Color.WHITE,
-      // outlineWidth: 2,
-      show: true, // 默认显示小红点
+      show: location.robotCount < 1000, // 小于1000台时显示小红点
       disableDepthTestDistance: Number.POSITIVE_INFINITY
     },
-    // SVG 图标（近距离显示）
+    // 机器人图片（机器人数量大于等于1000时显示）
     billboard: {
-      image: createSVGIcon('#FF4444'),
-      width: 30,
-      height: 30,
+      image: getStationRobotImage(location),
+      width: 55,
+      height: 55,
       verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
       heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
       disableDepthTestDistance: Number.POSITIVE_INFINITY,
-      show: false // 默认隐藏 SVG 图标
+      show: location.robotCount >= 1000 // 大于等于1000台时显示机器人图片
     },
     // 文字标签（近距离显示）
     // label: {
@@ -526,7 +540,7 @@ const addAllMarkers = () => {
   console.log(`已添加 ${validCount} 个电站标记点，跳过 ${invalidCount} 个无效经纬度的电站`)
   
   // 更新标记显示状态
-  updateMarkersDisplay()
+  // updateMarkersDisplay()
 }
 
 // 更新标记显示状态（根据相机高度）
@@ -571,7 +585,7 @@ const flyToLocation = (location) => {
     duration: 2,  // 飞行时间2秒
     complete: () => {
       // 飞行完成后更新标记显示
-      updateMarkersDisplay()
+      // updateMarkersDisplay()
       console.log(`已到达：${location.name}`)
     }
   })
@@ -668,7 +682,7 @@ const resetCamera = () => {
         roll: 0
       }
     })
-    updateMarkersDisplay()
+    // updateMarkersDisplay()
     // 延迟启动自转，和初始化时一样
     setTimeout(() => {
       startAutoRotation()
@@ -735,9 +749,9 @@ const initializeCesium = () => {
   })
   
   // 监听相机移动事件，动态切换标记显示
-  viewer.camera.moveEnd.addEventListener(() => {
-    updateMarkersDisplay()
-  })
+  // viewer.camera.moveEnd.addEventListener(() => {
+  //   updateMarkersDisplay()
+  // })
   
   // 禁用 Cesium 默认的双击聚焦行为
   viewer.screenSpaceEventHandler.removeInputAction(Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK)
@@ -789,9 +803,9 @@ const initializeCesium = () => {
               50000  // 默认飞到 50km 高度
             ),
             duration: 2,
-            complete: () => {
-              updateMarkersDisplay()
-            }
+            // complete: () => {
+            //   updateMarkersDisplay()
+            // }
           })
         }
       }
@@ -799,7 +813,7 @@ const initializeCesium = () => {
   }, Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK)
   
   // 初始化时更新一次显示状态
-  updateMarkersDisplay()
+  // updateMarkersDisplay()
   
   // ========== 用户交互监听 - 任何操作都停止自转 ==========
   
@@ -921,7 +935,7 @@ onMounted(() => {
         </div>
         <div class="stats-content">
           <div class="stats-label">电站容量总和</div>
-          <div class="stats-value">{{ stationStats.stationCapacity }} <span class="stats-unit">MW</span></div>
+          <div class="stats-value">{{ formatCapacity(stationStats.stationCapacity).value }} <span class="stats-unit">{{ formatCapacity(stationStats.stationCapacity).unit }}</span></div>
         </div>
       </div>
     </div>
@@ -1135,55 +1149,65 @@ onMounted(() => {
             
             <!-- 机器人统计 -->
             <div class="detail-section">
-              <div class="detail-section-title">机器人统计</div>
-              <div class="robot-stats-grid">
-                <div class="robot-stat-item">
-                  <div class="robot-stat-icon normal">
-                    <img :src="getStationRobotImage(selectedLocation)" alt="正常" />
+              <div class="detail-section-title">机器人活跃率</div>
+              <!-- 活跃度统计 -->
+              <div class="robot-stats-group">
+                <div class="robot-stats-grid">
+                  <div class="robot-stat-item">
+                    <div class="robot-stat-icon active">
+                      <img :src="getStationRobotImage(selectedLocation)" alt="活跃" />
+                    </div>
+                    <div class="robot-stat-content">
+                      <div class="robot-stat-number">{{ robotStats.active }}</div>
+                      <div class="robot-stat-label">活跃</div>
+                    </div>
                   </div>
-                  <div class="robot-stat-content">
-                    <div class="robot-stat-number">{{ robotStats.normal }}</div>
-                    <div class="robot-stat-label">正常</div>
-                  </div>
-                </div>
-                <div class="robot-stat-item">
-                  <div class="robot-stat-icon alarm">
-                    <img :src="getStationRobotImage(selectedLocation)" alt="告警" />
-                  </div>
-                  <div class="robot-stat-content">
-                    <div class="robot-stat-number">{{ robotStats.alarm }}</div>
-                    <div class="robot-stat-label">告警</div>
-                  </div>
-                </div>
-
-                <div class="robot-stat-item">
-                  <div class="robot-stat-icon active">
-                    <img :src="getStationRobotImage(selectedLocation)" alt="活跃" />
-                  </div>
-                  <div class="robot-stat-content">
-                    <div class="robot-stat-number">{{ robotStats.active }}</div>
-                    <div class="robot-stat-label">活跃</div>
-                  </div>
-                </div>
-                <div class="robot-stat-item">
-                  <div class="robot-stat-icon inactive">
-                    <img :src="getStationRobotImage(selectedLocation)" alt="不活跃" />
-                  </div>
-                  <div class="robot-stat-content">
-                    <div class="robot-stat-number">{{ robotStats.inactive }}</div>
-                    <div class="robot-stat-label">不活跃</div>
-                  </div>
-                </div>
-                <div class="robot-stat-item">
-                  <div class="robot-stat-icon fault">
-                    <img :src="getStationRobotImage(selectedLocation)" alt="故障" />
-                  </div>
-                  <div class="robot-stat-content">
-                    <div class="robot-stat-number">{{ robotStats.fault }}</div>
-                    <div class="robot-stat-label">故障</div>
+                  <div class="robot-stat-item">
+                    <div class="robot-stat-icon inactive">
+                      <img :src="getStationRobotImage(selectedLocation)" alt="不活跃" />
+                    </div>
+                    <div class="robot-stat-content">
+                      <div class="robot-stat-number">{{ robotStats.inactive }}</div>
+                      <div class="robot-stat-label">不活跃</div>
+                    </div>
                   </div>
                 </div>
               </div>
+
+              <div class="detail-section-title">机器人告警率</div>
+              <!-- 状态统计 -->
+              <div class="robot-stats-group">
+                <div class="robot-stats-grid">
+                  <div class="robot-stat-item">
+                    <div class="robot-stat-icon normal">
+                      <img :src="getStationRobotImage(selectedLocation)" alt="正常" />
+                    </div>
+                    <div class="robot-stat-content">
+                      <div class="robot-stat-number">{{ robotStats.normal }}</div>
+                      <div class="robot-stat-label">正常</div>
+                    </div>
+                  </div>
+                  <div class="robot-stat-item">
+                    <div class="robot-stat-icon alarm">
+                      <img :src="getStationRobotImage(selectedLocation)" alt="告警" />
+                    </div>
+                    <div class="robot-stat-content">
+                      <div class="robot-stat-number">{{ robotStats.alarm }}</div>
+                      <div class="robot-stat-label">告警</div>
+                    </div>
+                  </div>
+                  <div class="robot-stat-item">
+                    <div class="robot-stat-icon fault">
+                      <img :src="getStationRobotImage(selectedLocation)" alt="故障" />
+                    </div>
+                    <div class="robot-stat-content">
+                      <div class="robot-stat-number">{{ robotStats.fault }}</div>
+                      <div class="robot-stat-label">故障</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
             </div>
           </div>
         </div>
@@ -1632,6 +1656,15 @@ onMounted(() => {
   font-weight: 600;
   margin-bottom: 16px;
   padding-left: 4px;
+}
+
+/* 机器人统计分组 */
+.robot-stats-group {
+  margin-bottom: 20px;
+}
+
+.robot-stats-group:last-child {
+  margin-bottom: 0;
 }
 
 /* 机器人统计网格 */

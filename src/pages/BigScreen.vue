@@ -269,6 +269,7 @@ const startAutoRotation = () => {
       const newLongitude = position.longitude + rotationSpeed
       
       // 保持相机在当前高度和纬度，只改变经度
+      // 保持用户当前的视角角度，不强制锁定
       camera.setView({
         destination: Cesium.Cartesian3.fromRadians(
           newLongitude,
@@ -276,9 +277,9 @@ const startAutoRotation = () => {
           position.height
         ),
         orientation: {
-          heading: 0,
-          pitch: Cesium.Math.toRadians(-90),
-          roll: 0
+          heading: camera.heading,
+          pitch: camera.pitch,
+          roll: camera.roll
         }
       })
     }
@@ -301,20 +302,20 @@ const stopAutoRotation = () => {
 // 重置相机到初始位置
 const resetCamera = () => {
   if (viewer) {
-    viewer.camera.flyTo({
+    // 使用 setView 而不是 flyTo，和初始化时完全一样
+    viewer.camera.setView({
       destination: Cesium.Cartesian3.fromDegrees(104.195397, 35.86166, 11100000),
       orientation: {
         heading: Cesium.Math.toRadians(0),
         pitch: Cesium.Math.toRadians(-90),
         roll: 0
-      },
-      duration: 2,
-      complete: () => {
-        updateMarkersDisplay()
-        // 重置完成后启动自转
-        startAutoRotation()
       }
     })
+    updateMarkersDisplay()
+    // 延迟启动自转，和初始化时一样
+    setTimeout(() => {
+      startAutoRotation()
+    }, 500)  // 延迟0.5秒启动，让相机状态稳定
     console.log('相机已重置到初始位置')
   }
 }

@@ -8,6 +8,17 @@ const cesiumContainer = ref(null)
 let viewer = null
 const ZOOM_THRESHOLD = 50000 // 缩放阈值（米），相机高度大于此值时显示小红点
 
+// 密码验证相关
+const isAuthenticated = ref(false)
+const passwordInput = ref('')
+const passwordError = ref('')
+// 存储密码的哈希值，而不是明文密码
+// 这是 "" 的哈希值
+// 要生成新密码的哈希值，在浏览器控制台运行：
+// function hashPassword(password) { let hash = 0; for (let i = 0; i < password.length; i++) { const char = password.charCodeAt(i); hash = ((hash << 5) - hash) + char; hash = hash & hash; } return Math.abs(hash).toString(16).padStart(8, '0'); }
+// console.log(hashPassword('你的密码'))
+const PASSWORD_HASH = '39c43b7d' // 正确哈希值
+
 // 自转控制
 let isAutoRotating = false
 let rotationSpeed = 0.0003    // 自转速度（弧度/帧）
@@ -142,6 +153,39 @@ const closeDropdowns = () => {
   provinceSearchText.value = ''
   filteredCountries.value = [...countries.value]
   filteredProvinces.value = [...provinces.value]
+}
+
+// 简单的哈希函数（兼容所有浏览器和 HTTP 环境）
+const hashPassword = (password) => {
+  let hash = 0
+  for (let i = 0; i < password.length; i++) {
+    const char = password.charCodeAt(i)
+    hash = ((hash << 5) - hash) + char
+    hash = hash & hash // Convert to 32bit integer
+  }
+  // 转换为十六进制字符串
+  return Math.abs(hash).toString(16).padStart(8, '0')
+}
+
+// 密码验证
+const checkPassword = () => {
+  const inputHash = hashPassword(passwordInput.value)
+  if (inputHash === PASSWORD_HASH) {
+    isAuthenticated.value = true
+    passwordError.value = ''
+    // 验证成功后初始化地球
+    initializeCesium()
+  } else {
+    passwordError.value = '密码错误，请重试'
+    passwordInput.value = ''
+  }
+}
+
+// 处理回车键
+const handlePasswordKeydown = (event) => {
+  if (event.key === 'Enter') {
+    checkPassword()
+  }
 }
 
 // 电站数据列表
@@ -506,7 +550,8 @@ const resetCamera = () => {
   }
 }
 
-onMounted(() => {
+// Cesium 初始化函数
+const initializeCesium = () => {
   // 获取 Cesium Ion 默认的底图列表
   const imageryViewModels = Cesium.createDefaultImageryProviderViewModels()
   
@@ -668,6 +713,13 @@ onMounted(() => {
   console.log(`缩放阈值：${ZOOM_THRESHOLD / 1000} 千米`)
   console.log('双击图标可自动飞到该位置')
   console.log('💡 提示：初始化和重置后会自动转动，任何操作后停止')
+}
+
+onMounted(() => {
+  // 页面加载时不立即初始化 Cesium，等待密码验证
+  // 如果需要开发时跳过密码，可以取消注释下面这行
+  // isAuthenticated.value = true
+  // initializeCesium()
 })
 </script>
 
@@ -675,18 +727,47 @@ onMounted(() => {
   <div class="big-screen-wrapper">
     <div ref="cesiumContainer" class="cesium-container"></div>
     
+    <!-- 密码验证蒙层 -->
+    <transition name="fade">
+      <div v-if="!isAuthenticated" class="auth-overlay">
+        <div class="auth-box">
+          <div class="auth-header">
+            <div class="auth-icon">🔒</div>
+            <h2 class="auth-title">访问验证</h2>
+            <p class="auth-subtitle">请输入密码以访问大屏</p>
+          </div>
+          <div class="auth-content">
+            <input 
+              v-model="passwordInput"
+              type="password"
+              class="auth-input"
+              placeholder="请输入密码"
+              @keydown="handlePasswordKeydown"
+              autofocus
+            />
+            <transition name="shake">
+              <div v-if="passwordError" class="auth-error">{{ passwordError }}</div>
+            </transition>
+            <button class="auth-button" @click="checkPassword">
+              确认
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
+    
     <!-- 重置视角按钮 -->
-    <button class="cesium-reset-button cesium-button cesium-toolbar-button" @click="resetCamera" title="重置视角">
+    <!-- <button class="cesium-reset-button cesium-button cesium-toolbar-button" @click="resetCamera" title="重置视角">
       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
         <path d="M21 3v5h-5"/>
         <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
         <path d="M3 21v-5h5"/>
       </svg>
-    </button>
+    </button> -->
     
     <!-- 顶部统计面板 -->
-    <div class="stats-panel">
+    <div v-if="isAuthenticated" class="stats-panel">
       <div class="stats-item">
         <div class="stats-icon">🏭</div>
         <div class="stats-content">
@@ -713,7 +794,7 @@ onMounted(() => {
     </div>
     
     <!-- 左侧筛选和电站列表 -->
-    <div class="station-panel">
+    <div v-if="isAuthenticated" class="station-panel">
       <!-- 筛选区域 -->
       <div class="filter-section" @click.stop>
         <div class="filter-group">
@@ -836,7 +917,7 @@ onMounted(() => {
     
     <!-- 右侧电站详情面板 -->
     <transition name="slide-fade">
-      <div v-if="detailPanelVisible && selectedLocation" class="detail-panel">
+      <div v-if="isAuthenticated && detailPanelVisible && selectedLocation" class="detail-panel">
         <div class="detail-header">
           <h2 class="detail-title">{{ selectedLocation.name }}</h2>
           <button class="close-btn" @click="closeDetailPanel">✕</button>
@@ -920,6 +1001,137 @@ onMounted(() => {
 .cesium-container {
   width: 100%;
   height: 100%;
+}
+
+/* 密码验证蒙层 */
+.auth-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.9);
+  backdrop-filter: blur(20px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.auth-box {
+  background: rgba(0, 0, 0, 0.85);
+  border-radius: 16px;
+  padding: 40px;
+  width: 400px;
+  max-width: 90vw;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.auth-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.auth-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.auth-title {
+  margin: 0 0 8px 0;
+  color: #fff;
+  font-size: 24px;
+  font-weight: bold;
+}
+
+.auth-subtitle {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 14px;
+}
+
+.auth-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.auth-input {
+  width: 100%;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: #fff;
+  font-size: 16px;
+  outline: none;
+  transition: all 0.3s ease;
+  box-sizing: border-box;
+}
+
+.auth-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.auth-input:focus {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 107, 53, 0.6);
+  box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.1);
+}
+
+.auth-error {
+  padding: 10px 14px;
+  background: rgba(255, 68, 68, 0.2);
+  border: 1px solid rgba(255, 68, 68, 0.4);
+  border-radius: 6px;
+  color: #ff6b6b;
+  font-size: 14px;
+  text-align: center;
+}
+
+.auth-button {
+  width: 100%;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, #ff6b35, #f7931e);
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.auth-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 107, 53, 0.4);
+}
+
+.auth-button:active {
+  transform: translateY(0);
+}
+
+/* 蒙层淡入淡出动画 */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.5s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+/* 错误提示抖动动画 */
+.shake-enter-active {
+  animation: shake 0.5s;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+  20%, 40%, 60%, 80% { transform: translateX(5px); }
 }
 
 /* 顶部统计面板 */

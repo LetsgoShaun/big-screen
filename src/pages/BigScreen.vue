@@ -6,6 +6,11 @@ const cesiumContainer = ref(null)
 let viewer = null
 const ZOOM_THRESHOLD = 50000 // 缩放阈值（米），相机高度大于此值时显示小红点
 
+// 自转控制
+let isAutoRotating = false
+let rotationSpeed = 0.0003    // 自转速度（弧度/帧）
+let rotationListener = null   // 自转监听器引用
+
 // 右侧详情面板相关
 const detailPanelVisible = ref(false)
 const selectedLocation = ref(null)
@@ -216,6 +221,9 @@ const updateMarkersDisplay = () => {
 
 // 点击列表项，相机飞到对应位置
 const flyToLocation = (location) => {
+  // 停止自转
+  stopAutoRotation()
+  
   // 显示详情面板
   showDetailPanel(location)
   
@@ -246,6 +254,50 @@ const closeDetailPanel = () => {
   detailPanelVisible.value = false
 }
 
+// 启动自转
+const startAutoRotation = () => {
+  if (isAutoRotating) return
+  
+  isAutoRotating = true
+  rotationListener = viewer.clock.onTick.addEventListener(() => {
+    if (isAutoRotating) {
+      // 沿赤道方向移动相机，实现地球自转效果
+      const camera = viewer.camera
+      const position = camera.positionCartographic
+      
+      // 更新经度（向东移动）
+      const newLongitude = position.longitude + rotationSpeed
+      
+      // 保持相机在当前高度和纬度，只改变经度
+      camera.setView({
+        destination: Cesium.Cartesian3.fromRadians(
+          newLongitude,
+          position.latitude,
+          position.height
+        ),
+        orientation: {
+          heading: 0,
+          pitch: Cesium.Math.toRadians(-90),
+          roll: 0
+        }
+      })
+    }
+  })
+  console.log('🌍 地球自转已启动')
+}
+
+// 停止自转
+const stopAutoRotation = () => {
+  if (!isAutoRotating) return
+  
+  isAutoRotating = false
+  if (rotationListener) {
+    rotationListener()  // 移除监听器
+    rotationListener = null
+  }
+  console.log('⏸️ 地球自转已停止')
+}
+
 // 重置相机到初始位置
 const resetCamera = () => {
   if (viewer) {
@@ -256,7 +308,12 @@ const resetCamera = () => {
         pitch: Cesium.Math.toRadians(-90),
         roll: 0
       },
-      duration: 2
+      duration: 2,
+      complete: () => {
+        updateMarkersDisplay()
+        // 重置完成后启动自转
+        startAutoRotation()
+      }
     })
     console.log('相机已重置到初始位置')
   }
@@ -277,9 +334,9 @@ onMounted(() => {
     timeline: false,            // 隐藏时间轴
     baseLayerPicker: true,      // 显示底图选择器
     fullscreenButton: true,    // 隐藏全屏按钮
-    // geocoder: false,            // 隐藏地名查找控件
+    geocoder: false,            // 隐藏地名查找控件
     homeButton: false,          // 隐藏Home按钮
-    // sceneModePicker: false,     // 隐藏场景模式选择器（2D/3D切换）
+    sceneModePicker: false,     // 隐藏场景模式选择器（2D/3D切换）
     navigationHelpButton: false,// 隐藏导航帮助按钮
     infoBox: false,             // 隐藏信息框
     selectionIndicator: false,  // 隐藏选择指示器
@@ -384,8 +441,42 @@ onMounted(() => {
   // 初始化时更新一次显示状态
   updateMarkersDisplay()
   
+  // ========== 用户交互监听 - 任何操作都停止自转 ==========
+  
+  // 监听相机移动开始事件
+  viewer.camera.moveStart.addEventListener(() => {
+    stopAutoRotation()
+  })
+  
+  // 监听鼠标按下事件（拖动地球）
+  const screenHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas)
+  screenHandler.setInputAction(() => {
+    stopAutoRotation()
+  }, Cesium.ScreenSpaceEventType.LEFT_DOWN)
+  
+  // 监听鼠标滚轮事件（缩放）
+  screenHandler.setInputAction(() => {
+    stopAutoRotation()
+  }, Cesium.ScreenSpaceEventType.WHEEL)
+  
+  // 监听右键拖动事件（旋转视角）
+  screenHandler.setInputAction(() => {
+    stopAutoRotation()
+  }, Cesium.ScreenSpaceEventType.RIGHT_DOWN)
+  
+  // 监听中键拖动事件（平移）
+  screenHandler.setInputAction(() => {
+    stopAutoRotation()
+  }, Cesium.ScreenSpaceEventType.MIDDLE_DOWN)
+  
+  // 初始化完成后启动自转
+  setTimeout(() => {
+    startAutoRotation()
+  }, 500)  // 延迟0.5秒启动，让初始动画完成
+  
   console.log(`缩放阈值：${ZOOM_THRESHOLD / 1000} 千米`)
   console.log('双击图标可自动飞到该位置')
+  console.log('💡 提示：初始化和重置后会自动转动，任何操作后停止')
 })
 </script>
 
@@ -531,7 +622,7 @@ onMounted(() => {
 .cesium-reset-button {
   position: absolute;
   top: 5px;
-  right: 350px;  /* 放在全屏按钮左侧 */
+  right: 50px;  /* 放在全屏按钮左侧 */
   width: 32px;
   height: 32px;
   padding: 0;
@@ -565,7 +656,7 @@ onMounted(() => {
 /* 右侧详情面板 */
 .detail-panel {
   position: absolute;
-  top: 20px;
+  top: 50px;
   right: 20px;
   width: 380px;
   max-height: calc(100vh - 40px);

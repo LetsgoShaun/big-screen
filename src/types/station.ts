@@ -107,3 +107,19 @@ export interface StationStatDto {
   stationCapacity: number;
 }
 
+/**
+ * 机器人统计数据
+ */
+export interface RobotStatDto {
+  // 正常机器人数
+  normal: number;
+  // 告警机器人数
+  alarm: number;
+  // 故障机器人数
+  fault: number;
+  // 活跃机器人数量
+  active: number;
+  // 不活跃机器人数量
+  inactive: number;
+}
+

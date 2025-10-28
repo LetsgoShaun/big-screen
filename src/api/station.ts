@@ -5,7 +5,8 @@ import type {
   Pageable, 
   Page, 
   Msg,
-  StationStatDto 
+  StationStatDto,
+  RobotStatDto 
 } from "@/types/station.ts";
 import type { AxiosResponse } from "axios";
 
@@ -96,6 +97,47 @@ export const getStationStat = async (
     return response.data.data;
   } catch (error) {
     console.error("获取电站统计数据失败:", error);
+    throw error;
+  }
+};
+
+/**
+ * 获取机器人统计数据
+ * @param stationId 电站ID
+ * @returns Promise<RobotStatDto>
+ */
+export const getRobotStat = async (stationId: number): Promise<RobotStatDto> => {
+  try {
+    const response: AxiosResponse<Msg<RobotStatDto>> = await ApiService.get(
+      `/index/${stationId}/robotStat`
+    );
+
+    return response.data.data;
+  } catch (error) {
+    console.error("获取机器人统计数据失败:", error);
+    throw error;
+  }
+};
+
+/**
+ * 创建图片URL
+ * @param fileName 文件名
+ * @returns Promise<string>
+ */
+export const createUrl = async (fileName: string): Promise<string> => {
+  try {
+    const response: AxiosResponse<Msg<string>> = await ApiService.get(
+      "/files/createUrl",
+      {
+        params: {
+          fileName: fileName
+        }
+      }
+    );
+
+    return response.data.data;
+  } catch (error) {
+    console.error("创建图片URL失败:", error);
     throw error;
   }
 };

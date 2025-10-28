@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import * as Cesium from 'cesium'
-import { getStationList, getCountries, getProvinces, getStationStat } from '@/api/station.ts'
+import { getStationList, getCountries, getProvinces, getStationStat, getRobotStat, createUrl } from '@/api/station.ts'
 import { RobotType } from '@/types/station.ts'
 
 const cesiumContainer = ref(null)
@@ -27,6 +27,18 @@ let rotationListener = null   // 自转监听器引用
 // 右侧详情面板相关
 const detailPanelVisible = ref(false)
 const selectedLocation = ref(null)
+
+// 机器人统计数据
+const robotStats = ref({
+  normal: 0,
+  alarm: 0,
+  fault: 0,
+  active: 0,
+  inactive: 0
+})
+
+// 电站图片URL
+const stationImageUrl = ref('')
 
 // 左侧面板状态管理
 const leftPanelMode = ref('list') // 'list' 显示筛选列表，'detail' 显示详情内容
@@ -513,9 +525,31 @@ const flyToLocation = (location) => {
 }
 
 // 显示详情面板
-const showDetailPanel = (location) => {
+const showDetailPanel = async (location) => {
   selectedLocation.value = location
   detailPanelVisible.value = true
+  
+  // 并行请求机器人统计数据和图片URL
+  try {
+    const [robotStatData, imageUrl] = await Promise.all([
+      getRobotStat(location.id),
+      location.image ? createUrl(location.image) : Promise.resolve('')
+    ])
+    
+    robotStats.value = robotStatData
+    stationImageUrl.value = imageUrl
+  } catch (error) {
+    console.error('获取电站详情数据失败:', error)
+    // 重置为默认值
+    robotStats.value = {
+      normal: 0,
+      alarm: 0,
+      fault: 0,
+      active: 0,
+      inactive: 0
+    }
+    stationImageUrl.value = ''
+  }
 }
 
 // 关闭详情面板
@@ -986,15 +1020,16 @@ onMounted(() => {
         <div class="detail-content">
           <!-- 电站图片 -->
           <div class="station-image">
-            <img :src="selectedLocation.image" :alt="selectedLocation.name">
+            <img v-if="stationImageUrl" :src="stationImageUrl" :alt="selectedLocation.name">
+            <div v-else class="no-image">暂无图片</div>
           </div>
           
           <!-- 基本信息 -->
           <div class="info-section">
-            <div class="detail-item">
+            <!-- <div class="detail-item">
               <div class="detail-label">电站名称</div>
               <div class="detail-value">{{ selectedLocation.name }}</div>
-            </div>
+            </div> -->
             <!-- <div class="detail-item">
               <div class="detail-label">经纬度</div>
               <div class="detail-value">{{ selectedLocation.longitude }}°, {{ selectedLocation.latitude }}°</div>
@@ -1003,14 +1038,14 @@ onMounted(() => {
               <div class="detail-label">机器人数量</div>
               <div class="detail-value">{{ selectedLocation.robotCount }} 台</div>
             </div>
-            <div class="detail-item">
+            <!-- <div class="detail-item">
               <div class="detail-label">机器人类型</div>
               <div class="detail-value">
                 <span v-for="(type, index) in selectedLocation.robotTypes" :key="index" class="robot-type-tag">
                   {{ type }}
                 </span>
               </div>
-            </div>
+            </div> -->
             <div class="detail-item">
               <div class="detail-label">电站容量</div>
               <div class="detail-value">{{ selectedLocation.capacity }}</div>
@@ -1020,28 +1055,85 @@ onMounted(() => {
               <div class="detail-value">{{ selectedLocation.country }} / {{ selectedLocation.province }}</div>
             </div>
             <div class="detail-item">
-              <div class="detail-label">业主</div>
-              <div class="detail-value">{{ selectedLocation.owner }}</div>
+              <div class="detail-row">
+                <div class="detail-group">
+                  <div class="detail-label">业主</div>
+                  <div class="detail-value">{{ selectedLocation.owner }}</div>
+                </div>
+                <div class="detail-group">
+                  <div class="detail-label">EPC</div>
+                  <div class="detail-value">{{ selectedLocation.epc }}</div>
+                </div>
+                <!-- <div class="detail-group">
+                  <div class="detail-label">运维</div>
+                  <div class="detail-value">{{ selectedLocation.operation }}</div>
+                </div> -->
+              </div>
             </div>
-            <div class="detail-item">
-              <div class="detail-label">EPC</div>
-              <div class="detail-value">{{ selectedLocation.epc }}</div>
-            </div>
-            <div class="detail-item">
+            <!-- <div class="detail-item">
               <div class="detail-label">运维</div>
               <div class="detail-value">{{ selectedLocation.operation }}</div>
-            </div>
-            <div class="detail-item full-width">
+            </div> -->
+            <!-- <div class="detail-item full-width">
               <div class="detail-label">电站描述</div>
               <div class="detail-value">{{ selectedLocation.description }}</div>
+            </div> -->
+            
+            <!-- 机器人统计 -->
+            <div class="detail-section">
+              <div class="detail-section-title">机器人统计</div>
+              <div class="robot-stats-grid">
+                <div class="robot-stat-item">
+                  <div class="robot-stat-icon normal">
+                    <img :src="getStationRobotImage(selectedLocation)" alt="正常" />
+                  </div>
+                  <div class="robot-stat-content">
+                    <div class="robot-stat-number">{{ robotStats.normal }}</div>
+                    <div class="robot-stat-label">正常</div>
+                  </div>
+                </div>
+                <div class="robot-stat-item">
+                  <div class="robot-stat-icon alarm">
+                    <img :src="getStationRobotImage(selectedLocation)" alt="告警" />
+                  </div>
+                  <div class="robot-stat-content">
+                    <div class="robot-stat-number">{{ robotStats.alarm }}</div>
+                    <div class="robot-stat-label">告警</div>
+                  </div>
+                </div>
+
+                <div class="robot-stat-item">
+                  <div class="robot-stat-icon active">
+                    <img :src="getStationRobotImage(selectedLocation)" alt="活跃" />
+                  </div>
+                  <div class="robot-stat-content">
+                    <div class="robot-stat-number">{{ robotStats.active }}</div>
+                    <div class="robot-stat-label">活跃</div>
+                  </div>
+                </div>
+                <div class="robot-stat-item">
+                  <div class="robot-stat-icon inactive">
+                    <img :src="getStationRobotImage(selectedLocation)" alt="不活跃" />
+                  </div>
+                  <div class="robot-stat-content">
+                    <div class="robot-stat-number">{{ robotStats.inactive }}</div>
+                    <div class="robot-stat-label">不活跃</div>
+                  </div>
+                </div>
+                <div class="robot-stat-item">
+                  <div class="robot-stat-icon fault">
+                    <img :src="getStationRobotImage(selectedLocation)" alt="故障" />
+                  </div>
+                  <div class="robot-stat-content">
+                    <div class="robot-stat-number">{{ robotStats.fault }}</div>
+                    <div class="robot-stat-label">故障</div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-        <!-- <div class="detail-footer">
-          <button class="action-btn" @click="flyToLocation(selectedLocation)">
-            📍 重新定位
-          </button>
-        </div> -->
+
       </div>
     </transition>
   </div>
@@ -1344,6 +1436,16 @@ onMounted(() => {
   object-fit: cover;
 }
 
+.no-image {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 14px;
+}
+
 /* 信息区域 */
 .info-section {
   padding: 0;
@@ -1443,6 +1545,107 @@ onMounted(() => {
 .detail-item:hover {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.2);
+}
+
+.detail-row {
+  display: flex;
+  gap: 20px;
+}
+
+.detail-group {
+  flex: 1;
+}
+
+/* 详情页分区样式 */
+.detail-section {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.detail-section-title {
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  padding-left: 4px;
+}
+
+/* 机器人统计网格 */
+.robot-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.robot-stat-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  border: 1px solid transparent;
+  transition: all 0.3s ease;
+}
+
+.robot-stat-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.robot-stat-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.robot-stat-icon img {
+  width: 32px;
+  height: 32px;
+  object-fit: cover;
+}
+
+/* 不同状态的图标背景色 */
+.robot-stat-icon.normal {
+  background: rgba(34, 197, 94, 0.2);
+}
+
+.robot-stat-icon.alarm {
+  background: rgba(251, 191, 36, 0.2);
+}
+
+.robot-stat-icon.fault {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+.robot-stat-icon.active {
+  background: rgba(59, 130, 246, 0.2);
+}
+
+.robot-stat-icon.inactive {
+  background: rgba(107, 114, 128, 0.2);
+}
+
+.robot-stat-content {
+  flex: 1;
+}
+
+.robot-stat-number {
+  color: #fff;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.robot-stat-label {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  margin-top: 2px;
 }
 
 .detail-label {

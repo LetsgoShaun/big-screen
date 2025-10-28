@@ -28,6 +28,9 @@ let rotationListener = null   // 自转监听器引用
 const detailPanelVisible = ref(false)
 const selectedLocation = ref(null)
 
+// 左侧面板状态管理
+const leftPanelMode = ref('list') // 'list' 显示筛选列表，'detail' 显示详情内容
+
 // 悬浮提示标签
 let hoverLabel = null
 

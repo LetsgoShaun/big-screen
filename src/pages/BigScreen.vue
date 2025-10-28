@@ -150,6 +150,18 @@ const getStationRobotImage = (station) => {
   return imageMap[mainRobotType] || '/media/all.png'
 }
 
+// 根据选择的机器人类型获取图片
+const getSelectedRobotTypeImage = () => {
+  const imageMap = {
+    '全部': '/media/all.png',
+    '干挂式': '/media/PVRailed.png',
+    '分布式': '/media/trackless.png',
+    'AGV': '/media/AGV.png'
+  }
+  
+  return imageMap[selectedRobotType.value] || '/media/all.png'
+}
+
 // 获取机器人类型图片
 const getRobotTypeImage = (type) => {
   const imageMap = {
@@ -453,8 +465,8 @@ const addLocationMarker = (location) => {
     // SVG 图标（近距离显示）
     billboard: {
       image: createSVGIcon('#FF4444'),
-      width: 40,
-      height: 40,
+      width: 30,
+      height: 30,
       verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
       heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
       disableDepthTestDistance: Number.POSITIVE_INFINITY,
@@ -894,8 +906,8 @@ onMounted(() => {
       </div>
       <div class="stats-divider"></div>
       <div class="stats-item">
-        <div class="stats-icon" style="width: 50px;">
-          <img src="/media/all.png" alt="机器人" />
+        <div class="stats-image" style="width: 50px;">
+          <img :src="getSelectedRobotTypeImage()" alt="机器人" />
         </div>
         <div class="stats-content">
           <div class="stats-label">机器人数量</div>
@@ -1030,7 +1042,7 @@ onMounted(() => {
           </div>
           <div class="station-stats">
             <div class="stat-item">
-              <div class="stat-icon">
+              <div class="stat-image">
                 <img :src="getStationRobotImage(station)" :alt="station.robotTypes[0]" />
               </div>
               <div class="stat-content">
@@ -1039,7 +1051,7 @@ onMounted(() => {
               </div>
             </div>
             <div class="stat-item">
-              <div class="stat-icon">
+              <div class="stat-image">
                 <img src="/media/factory-icon.svg" alt="电站容量总和" />
               </div>
               <div class="stat-content">
@@ -1380,7 +1392,16 @@ onMounted(() => {
   height: 40px;
   filter: brightness(0) saturate(100%) invert(100%);
 }
+.stats-image {
+  font-size: 32px;
+  line-height: 1;
+}
 
+.stats-image img {
+  width: 40px;
+  height: 40px;
+  /* filter: brightness(0) saturate(100%) invert(100%); */
+}
 .stats-content {
   display: flex;
   flex-direction: column;
@@ -2053,6 +2074,19 @@ onMounted(() => {
   object-fit: cover;
   border-radius: 2px;
   filter: brightness(0) saturate(100%) invert(100%);
+}
+
+.stat-image {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.stat-image img {
+  width: 35px;
+  height: 35px;
+  object-fit: cover;
+  border-radius: 2px;
+  /* filter: brightness(0) saturate(100%) invert(100%); */
 }
 
 .stat-content {

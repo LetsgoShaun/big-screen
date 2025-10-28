@@ -6,7 +6,8 @@ import type {
   Page, 
   Msg,
   StationStatDto,
-  RobotStatDto 
+  RobotStatDto,
+  CountryDto 
 } from "@/types/station.ts";
 import type { AxiosResponse } from "axios";
 
@@ -44,11 +45,11 @@ export const getStationList = async (
 
 /**
  * 获取国家列表
- * @returns Promise<string[]>
+ * @returns Promise<CountryDto[]>
  */
-export const getCountries = async (): Promise<string[]> => {
+export const getCountries = async (): Promise<CountryDto[]> => {
   try {
-    const response: AxiosResponse<Msg<string[]>> = await ApiService.get(
+    const response: AxiosResponse<Msg<CountryDto[]>> = await ApiService.get(
       "/index/countries"
     );
     return response.data.data;

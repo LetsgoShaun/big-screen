@@ -59,7 +59,7 @@ const selectedProvince = ref('全部')
 const robotTypes = ['全部', '干挂式', '分布式', 'AGV']
 
 // 国家列表（从接口获取）
-const countries = ref(['全部'])
+const countries = ref([])
 
 // 省份列表（从接口获取）
 const provinces = ref(['全部'])
@@ -72,7 +72,7 @@ const countrySearchText = ref('')
 const provinceSearchText = ref('')
 
 // 过滤后的选项
-const filteredCountries = ref(['全部'])
+const filteredCountries = ref([])
 const filteredProvinces = ref(['全部'])
 
 // 电站统计数据
@@ -118,9 +118,14 @@ const toggleProvinceDropdown = () => {
 // 搜索过滤函数
 const filterCountryOptions = () => {
   const searchText = countrySearchText.value.toLowerCase()
-  filteredCountries.value = countries.value.filter(country => 
-    country.toLowerCase().includes(searchText)
-  )
+  filteredCountries.value = countries.value.filter(country => {
+    // 如果是字符串（"全部"），按原逻辑处理
+    if (typeof country === 'string') {
+      return country.toLowerCase().includes(searchText)
+    }
+    // 如果是对象，按name字段过滤
+    return country.name.toLowerCase().includes(searchText)
+  })
 }
 
 const filterProvinceOptions = () => {
@@ -166,22 +171,59 @@ const selectRobotType = (type) => {
 }
 
 const selectCountry = (country) => {
-  selectedCountry.value = country
-  countryDropdownOpen.value = false
-  countrySearchText.value = ''
-  filteredCountries.value = [...countries.value]
-  
-  // 如果选择的不是"中国"，重置省份选择并隐藏省份下拉框
-  if (country !== '中国') {
-    selectedProvince.value = '全部'
-    provinceDropdownOpen.value = false
-    provinceSearchText.value = ''
-    filteredProvinces.value = [...provinces.value]
+  // 如果传入的是字符串（"全部"），保持原有逻辑
+  if (typeof country === 'string') {
+    selectedCountry.value = country
+    countryDropdownOpen.value = false
+    countrySearchText.value = ''
+    filteredCountries.value = [...countries.value]
+    
+    // 如果选择的不是"中国"，重置省份选择并隐藏省份下拉框
+    if (country !== '中国') {
+      selectedProvince.value = '全部'
+      provinceDropdownOpen.value = false
+      provinceSearchText.value = ''
+      filteredProvinces.value = [...provinces.value]
+    }
+    
+    // 重新获取电站数据和统计数据
+    fetchStationData()
+    fetchStationStats()
+  } else {
+    // 如果传入的是国家对象，进行视角转换
+    selectedCountry.value = country.name
+    countryDropdownOpen.value = false
+    countrySearchText.value = ''
+    filteredCountries.value = [...countries.value]
+    
+    // 停止自转
+    stopAutoRotation()
+    
+    // 视角转换到该国家
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(
+        country.lon, 
+        country.lat, 
+        country.height
+      ),
+      duration: 2,  // 飞行时间2秒
+      complete: () => {
+        console.log(`已到达：${country.name}`)
+      }
+    })
+    
+    // 如果选择的不是"中国"，重置省份选择并隐藏省份下拉框
+    if (country.name !== '中国') {
+      selectedProvince.value = '全部'
+      provinceDropdownOpen.value = false
+      provinceSearchText.value = ''
+      filteredProvinces.value = [...provinces.value]
+    }
+    
+    // 重新获取电站数据和统计数据
+    fetchStationData()
+    fetchStationStats()
   }
-  
-  // 重新获取电站数据和统计数据
-  fetchStationData()
-  fetchStationStats()
 }
 
 const selectProvince = (province) => {
@@ -354,7 +396,7 @@ const fetchStationData = async () => {
         name: station.name,
         longitude: lon, // 可能为 null
         latitude: lat, // 可能为 null
-        cameraHeight: 1000, // 默认相机高度
+        cameraHeight: station.height || 1000, // 使用接口返回的高度，默认1000
         robotCount: station.robotNum || 0,
         robotTypes: [robotTypeMap[station.robotType] || station.robotType || '未知'], // 转换为数组
         description: station.description || '暂无描述',
@@ -919,12 +961,12 @@ onMounted(() => {
                 <div class="options-list">
                   <div 
                     v-for="country in filteredCountries" 
-                    :key="country"
+                    :key="typeof country === 'string' ? country : country.id"
                     class="custom-option"
-                    :class="{ 'selected': country === selectedCountry }"
+                    :class="{ 'selected': (typeof country === 'string' ? country : country.name) === selectedCountry }"
                     @click="selectCountry(country)"
                   >
-                    {{ country }}
+                    {{ typeof country === 'string' ? country : country.name }}
                   </div>
                   <div v-if="filteredCountries.length === 0" class="no-options">
                     无匹配选项

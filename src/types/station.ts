@@ -31,6 +31,8 @@ export interface StationDto {
   lat: number;
   // 经度
   lon: number;
+  // 高度
+  height: number;
   robotNum: number;
   robotType: RobotType;
   // 电站描述
@@ -121,5 +123,16 @@ export interface RobotStatDto {
   active: number;
   // 不活跃机器人数量
   inactive: number;
+}
+
+/**
+ * 国家信息
+ */
+export interface CountryDto {
+  id: number;
+  name: string;
+  lat: number;
+  lon: number;
+  height: number;
 }
 

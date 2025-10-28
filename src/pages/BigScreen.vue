@@ -1051,7 +1051,7 @@ onMounted(() => {
               </div>
             </div>
             <div class="stat-item">
-              <div class="stat-image">
+              <div class="stat-icon">
                 <img src="/media/factory-icon.svg" alt="电站容量总和" />
               </div>
               <div class="stat-content">

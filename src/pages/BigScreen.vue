@@ -800,12 +800,12 @@ const initializeCesium = () => {
             destination: Cesium.Cartesian3.fromDegrees(
               Cesium.Math.toDegrees(cartographic.longitude),
               Cesium.Math.toDegrees(cartographic.latitude),
-              50000  // 默认飞到 50km 高度
+              1000  // 默认飞到 1km 高度，与电站列表点击保持一致
             ),
             duration: 2,
-            // complete: () => {
-            //   updateMarkersDisplay()
-            // }
+            complete: () => {
+              console.log(`已到达：${entity.name}`)
+            }
           })
         }
       }

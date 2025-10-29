@@ -1,9 +1,9 @@
 <script setup>
-import BigScreen from './pages/BigScreen.vue'
+// 不再需要直接导入BigScreen组件，路由会自动处理
 </script>
 
 <template>
-  <BigScreen />
+  <router-view />
 </template>
 
 <style>

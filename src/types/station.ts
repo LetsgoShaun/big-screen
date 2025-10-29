@@ -13,12 +13,74 @@ export const RobotType = {
 } as const
 
 /**
+ * 电站保存命令
+ */
+export interface StationSaveCmd {
+  name: string;
+  // 纬度
+  lat: number;
+  // 经度
+  lon: number;
+  robotNum: number;
+  robotType: RobotType;
+  // 电站描述
+  description?: string;
+  // 电站容量
+  capacity: number;
+  // 国家
+  country: string;
+  // 省份
+  province: string;
+  // 业主
+  owner?: string;
+  // epc
+  epc?: string;
+  // 运维
+  operation?: string;
+  // 电站图片
+  image?: string;
+  height?: number;
+}
+
+/**
+ * 电站更新命令
+ */
+export interface StationUpdateCmd {
+  name: string;
+  // 纬度
+  lat: number;
+  // 经度
+  lon: number;
+  robotNum: number;
+  robotType: RobotType;
+  // 电站描述
+  description?: string;
+  // 电站容量
+  capacity: number;
+  // 国家
+  country: string;
+  // 省份
+  province: string;
+  // 业主
+  owner?: string;
+  // epc
+  epc?: string;
+  // 运维
+  operation?: string;
+  // 电站图片
+  image?: string;
+  height?: number;
+  address?: string;
+}
+
+/**
  * 电站查询参数
  */
 export interface StationQueryObj {
   robotType?: RobotType;
   country?: string;
   province?: string;
+  name?: string;
 }
 
 /**
@@ -133,6 +195,20 @@ export interface CountryDto {
   name: string;
   lat: number;
   lon: number;
+  height: number;
+}
+
+/**
+ * 国家信息（用于表单）
+ */
+export interface NationDto {
+  id: number;
+  name: string;
+  // 纬度
+  lat: number;
+  // 经度
+  lon: number;
+  // 视觉高度
   height: number;
 }
 
